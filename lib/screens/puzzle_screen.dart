@@ -39,6 +39,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   double _currentTime = 0.0;
   double _userBestTime = double.infinity; // Track user's personal best time
   String playerName = "Unknown";
+  bool _isPlayerNameLoaded = false;
 
   @override
   void initState() {
@@ -61,6 +62,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
 
     // Load user's best time from local storage
     _loadUserBestTime();
+    _loadPlayerName();
   }
 
   Future<void> _loadUserBestTime() async {
@@ -83,6 +85,31 @@ class _PuzzleScreenState extends State<PuzzleScreen>
       await prefs.setDouble('user_best_time_${_currentPuzzle.id}', time);
     } catch (e) {
       debugPrint('Error saving user best time: $e');
+    }
+  }
+
+  Future<void> _loadPlayerName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String savedName = prefs.getString('player_name') ?? "Unknown";
+      setState(() {
+        playerName = savedName;
+        _isPlayerNameLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('Error loading player name: $e');
+    }
+  }
+
+  Future<void> _savePlayerName(String name) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('player_name', name);
+      setState(() {
+        playerName = name;
+      });
+    } catch (e) {
+      debugPrint('Error saving player name: $e');
     }
   }
 
@@ -232,8 +259,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
       }
 
       if (_currentTime < _currentPuzzle.bestTime) {
-        // Ask for player name
-        if (mounted) {
+        // Only ask for player name if we don't have one yet
+        if (mounted && (playerName == "Unknown" || !_isPlayerNameLoaded)) {
           TextEditingController textController =
               TextEditingController(text: "");
 
@@ -308,6 +335,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
             // Get player name from dialog
             if (value != null && value.isNotEmpty) {
               playerName = value;
+              _savePlayerName(playerName); // Save the name for future use
             }
           });
         }
@@ -628,6 +656,38 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                           ),
                         ],
                       ),
+
+                      // Next Level button
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            // Pop both the dialog and the current level
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop();
+                            // The home screen will have the next level unlocked
+                          },
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          label: const Text(
+                            'Next Level',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: widget.customSecondary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -687,9 +747,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
 
-    // Format milliseconds with just 1 decimal place to save space
+    // Format milliseconds with 2 decimal places for more complete display
     final formattedMilliseconds =
-        (milliseconds * 10).round().toString().padLeft(1, '0');
+        (milliseconds * 100).round().toString().padLeft(2, '0');
 
     // Format as minutes:seconds.milliseconds for better space efficiency
     return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}.${formattedMilliseconds}';
@@ -1159,13 +1219,15 @@ class UserBestTimeCard extends StatelessWidget {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  userBestTime.isEmpty ? "No Time Yet" : userBestTime,
+                  userBestTime.isEmpty || userBestTime == ""
+                      ? "00:00:00"
+                      : userBestTime,
                   style: TextStyle(
                     fontSize: 16, // Reduced font size
                     fontWeight: FontWeight.bold,
                     color: customColor,
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  overflow: TextOverflow.visible,
                 ),
               ),
             ],

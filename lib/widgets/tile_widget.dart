@@ -1,3 +1,5 @@
+// ignore_for_file: unused_local_variable
+
 import 'package:flutter/material.dart';
 
 class TileWidget extends StatefulWidget {
@@ -33,13 +35,13 @@ class _TileWidgetState extends State<TileWidget>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.92).animate(
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
-    _rotateAnimation = Tween<double>(begin: 0.0, end: 0.02).animate(
+    _rotateAnimation = Tween<double>(begin: 0.0, end: 0.01).animate(
       CurvedAnimation(parent: _controller, curve: Curves.elasticIn),
     );
   }
@@ -63,7 +65,7 @@ class _TileWidgetState extends State<TileWidget>
 
     // Different shades based on movability
     if (widget.movableDirections.isNotEmpty) {
-      return theme.colorScheme.primary.withOpacity(0.85);
+      return theme.colorScheme.primary.withOpacity(0.9);
     }
 
     return theme.colorScheme.primary.withOpacity(0.7);
@@ -82,20 +84,27 @@ class _TileWidgetState extends State<TileWidget>
 
     // Adjust font size based on number of digits
     final double fontSize = isTripleDigit
-        ? widget.size * 0.35
+        ? widget.size * 0.34
         : isDoubleDigit
-            ? widget.size * 0.4
-            : widget.size * 0.45;
+            ? widget.size * 0.38
+            : widget.size * 0.44;
 
     // Adjust corner indicator visibility based on size
     final bool showCornerIndicator = widget.size > 40 && isMovable;
 
     // Scale direction indicators based on tile size
-    final double directionIndicatorSize = widget.size > 50 ? 16 : 12;
+    final double directionIndicatorSize = widget.size > 50 ? 18 : 14;
 
     // Adjust border radius based on size
     final double borderRadius =
         widget.size > 60 ? 20 : (widget.size > 40 ? 16 : 12);
+
+    // Create gradient colors for the tile
+    final primaryColor = _getTileColor();
+    final secondaryColor = HSLColor.fromColor(primaryColor)
+        .withLightness(
+            (HSLColor.fromColor(primaryColor).lightness - 0.1).clamp(0.0, 1.0))
+        .toColor();
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -138,40 +147,52 @@ class _TileWidgetState extends State<TileWidget>
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        _getTileColor().withOpacity(1.0),
-                        _getTileColor().withOpacity(0.8),
+                        primaryColor,
+                        secondaryColor,
                       ],
+                      stops: const [0.3, 1.0],
                     )
                   : null,
               color: isMovable ? null : _getTileColor(),
               borderRadius: BorderRadius.circular(borderRadius),
               boxShadow: isMovable
                   ? [
+                      // Outer shadow
                       BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(
-                            widget.isSelected || _isHovered ? 0.5 : 0.25),
-                        blurRadius: widget.isSelected || _isHovered ? 12 : 6,
-                        spreadRadius: widget.isSelected || _isHovered ? 2 : 0,
-                        offset:
-                            Offset(0, widget.isSelected || _isHovered ? 5 : 3),
+                        color: primaryColor.withOpacity(
+                            widget.isSelected || _isHovered ? 0.5 : 0.3),
+                        blurRadius:
+                            widget.isSelected ? 16 : (_isHovered ? 10 : 6),
+                        spreadRadius:
+                            widget.isSelected ? 2 : (_isHovered ? 1 : 0),
+                        offset: Offset(
+                            0, widget.isSelected ? 6 : (_isHovered ? 4 : 3)),
+                      ),
+                      // Inner highlight for 3D effect
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.5),
+                        blurRadius: 3,
+                        spreadRadius: -2,
+                        offset: const Offset(-1, -1),
                       ),
                     ]
                   : null,
               border: !isMovable
                   ? Border.all(color: Colors.grey[400]!, width: 1)
                   : widget.isSelected
-                      ? Border.all(color: Colors.white, width: 2.0)
+                      ? Border.all(
+                          color: Colors.white.withOpacity(0.8), width: 3.0)
                       : null,
             ),
-            child: Stack(
-              children: [
-                // Subtle pattern overlay for texture (only on movable tiles)
-                if (isMovable)
-                  Positioned.fill(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(borderRadius),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(borderRadius),
+              child: Stack(
+                children: [
+                  // Subtle pattern overlay for texture (only on movable tiles)
+                  if (isMovable)
+                    Positioned.fill(
                       child: Opacity(
-                        opacity: 0.07,
+                        opacity: 0.04,
                         child: Image.network(
                           'https://www.transparenttextures.com/patterns/cubes.png',
                           repeat: ImageRepeat.repeat,
@@ -179,115 +200,137 @@ class _TileWidgetState extends State<TileWidget>
                         ),
                       ),
                     ),
-                  ),
 
-                // Main number
-                Center(
-                  child: Text(
-                    widget.value.toString(),
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: isDoubleDigit ? -1.0 : -0.5,
-                      color: isMovable ? Colors.white : Colors.grey[700],
-                      shadows: isMovable
-                          ? [
-                              Shadow(
-                                color: Colors.black.withOpacity(0.4),
-                                blurRadius: 3,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]
-                          : null,
-                    ),
-                  ),
-                ),
-
-                // Directional indicators (when selected or hovered)
-                if (_isHovered && isMovable && widget.size > 40)
-                  ...widget.movableDirections.map((direction) {
-                    Alignment alignment;
-                    IconData icon;
-
-                    switch (direction) {
-                      case 'up':
-                        alignment = Alignment.topCenter;
-                        icon = Icons.arrow_drop_up;
-                        break;
-                      case 'down':
-                        alignment = Alignment.bottomCenter;
-                        icon = Icons.arrow_drop_down;
-                        break;
-                      case 'left':
-                        alignment = Alignment.centerLeft;
-                        icon = Icons.arrow_left;
-                        break;
-                      case 'right':
-                        alignment = Alignment.centerRight;
-                        icon = Icons.arrow_right;
-                        break;
-                      default:
-                        alignment = Alignment.center;
-                        icon = Icons.touch_app;
-                    }
-
-                    return Align(
-                      alignment: alignment,
+                  // Subtle inner lighting effect for depth
+                  if (isMovable)
+                    Positioned.fill(
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.4),
-                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.2),
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.1),
+                            ],
+                            stops: const [0.0, 0.5, 1.0],
+                          ),
                         ),
-                        padding: EdgeInsets.all(widget.size > 60 ? 3 : 2),
-                        child: Icon(
-                          icon,
-                          color: Colors.white,
-                          size: directionIndicatorSize,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withOpacity(0.3),
+                      ),
+                    ),
+
+                  // Main number with improved styling
+                  Center(
+                    child: Text(
+                      widget.value.toString(),
+                      style: TextStyle(
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: isDoubleDigit ? -1.0 : -0.5,
+                        color: isMovable ? Colors.white : Colors.grey[700],
+                        shadows: isMovable
+                            ? [
+                                Shadow(
+                                  color: Colors.black.withOpacity(0.4),
+                                  blurRadius: 3,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
+
+                  // Directional indicators with improved styling
+                  if ((_isHovered || widget.isSelected) &&
+                      isMovable &&
+                      widget.size > 40)
+                    ...widget.movableDirections.map((direction) {
+                      Alignment alignment;
+                      IconData icon;
+
+                      switch (direction) {
+                        case 'up':
+                          alignment = Alignment.topCenter;
+                          icon = Icons.arrow_drop_up_rounded;
+                          break;
+                        case 'down':
+                          alignment = Alignment.bottomCenter;
+                          icon = Icons.arrow_drop_down_rounded;
+                          break;
+                        case 'left':
+                          alignment = Alignment.centerLeft;
+                          icon = Icons.arrow_left_rounded;
+                          break;
+                        case 'right':
+                          alignment = Alignment.centerRight;
+                          icon = Icons.arrow_right_rounded;
+                          break;
+                        default:
+                          alignment = Alignment.center;
+                          icon = Icons.touch_app_rounded;
+                      }
+
+                      return Align(
+                        alignment: alignment,
+                        child: Container(
+                          margin: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.25),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                blurRadius: 2,
+                                spreadRadius: 0,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          padding: EdgeInsets.all(widget.size > 60 ? 3 : 2),
+                          child: Icon(
+                            icon,
+                            color: Colors.white,
+                            size: directionIndicatorSize,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withOpacity(0.3),
+                                blurRadius: 2,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+
+                  // Visual indicator for movable tiles
+                  if (isMovable && !widget.isSelected && showCornerIndicator)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        width: widget.size > 70 ? 10 : 8,
+                        height: widget.size > 70 ? 10 : 8,
+                        decoration: BoxDecoration(
+                          color: widget.movableDirections.length > 1
+                              ? Colors.greenAccent
+                              : Colors.amber,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
                               blurRadius: 2,
+                              spreadRadius: 0,
                               offset: const Offset(0, 1),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  }),
-
-                // Bottom right corner decoration (tile number as small indicator)
-                if (showCornerIndicator)
-                  Positioned(
-                    right: widget.size > 60 ? 6 : 4,
-                    bottom: widget.size > 60 ? 4 : 2,
-                    child: Container(
-                      width: widget.size > 60 ? 16 : 12,
-                      height: widget.size > 60 ? 16 : 12,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.4),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 2,
-                            spreadRadius: 0,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          widget.value.toString(),
-                          style: TextStyle(
-                            fontSize: widget.size > 60 ? 9 : 7,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

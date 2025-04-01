@@ -24,13 +24,15 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
   Offset? _dragStart;
   late AnimationController _gridAnimationController;
   late Animation<double> _gridScaleAnimation;
+  late AnimationController _selectionAnimController;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
     super.initState();
     _gridAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 600),
     );
 
     _gridScaleAnimation = CurvedAnimation(
@@ -38,12 +40,27 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
       curve: Curves.easeOutBack,
     );
 
+    // Add pulsating animation for selected tile
+    _selectionAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(
+        parent: _selectionAnimController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _selectionAnimController.repeat(reverse: true);
     _gridAnimationController.forward();
   }
 
   @override
   void dispose() {
     _gridAnimationController.dispose();
+    _selectionAnimController.dispose();
     super.dispose();
   }
 
@@ -203,16 +220,23 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
     final maxColumns = _getMaxColumns();
     final theme = Theme.of(context);
 
-    // Calculate optimal tile size based on grid size
+    // Calculate optimal tile size based on grid size and screen size
     final Size screenSize = MediaQuery.of(context).size;
     final double availableWidth = screenSize.width - 80; // Account for padding
-    final double maxTileSize = availableWidth / maxColumns;
+    final double availableHeight =
+        screenSize.height - 300; // Adjust for app bar and other UI elements
+
+    // More adaptive tile sizing based on both width and height constraints
+    final double maxTileWidth = availableWidth / maxColumns;
+    final double maxTileHeight = availableHeight / widget.grid.length;
+    final double maxTileSize = math.min(maxTileWidth, maxTileHeight);
 
     // Adjust tile size based on grid size
-    final double tileSize = maxColumns > 4 ? maxTileSize * 0.9 : 75;
+    final double tileSize =
+        math.max(math.min(maxTileSize * 0.92, 80), 50); // Minimum size of 50
 
     // Adjust spacing based on grid size
-    final double spacing = maxColumns > 4 ? 6 : 10;
+    final double spacing = tileSize > 60 ? 8 : 4;
 
     // Get adjacent empty positions for the selected tile
     Map<String, List<int>> adjacentEmptyPositions = {};
@@ -236,156 +260,102 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
         child: Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
               BoxShadow(
                 color: theme.colorScheme.primary.withOpacity(0.15),
                 blurRadius: 25,
-                spreadRadius: 6,
+                spreadRadius: 8,
                 offset: const Offset(0, 12),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.07),
-                blurRadius: 7,
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 8,
                 spreadRadius: 2,
                 offset: const Offset(0, 4),
               ),
             ],
             border: Border.all(
-              color: theme.colorScheme.primary.withOpacity(0.15),
-              width: 2.5,
+              color: theme.colorScheme.primary.withOpacity(0.1),
+              width: 2,
             ),
           ),
-          child: Padding(
-            padding: EdgeInsets.all(maxColumns > 4
-                ? 12.0
-                : 20.0), // Reduce padding for larger grids
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: maxColumns,
-                childAspectRatio: 1,
-                crossAxisSpacing: spacing,
-                mainAxisSpacing: spacing,
+          clipBehavior: Clip.antiAlias,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Container(
+              padding: EdgeInsets.all(spacing + 6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    theme.colorScheme.surface,
+                    theme.colorScheme.surface.withOpacity(0.92),
+                  ],
+                ),
               ),
-              itemCount: widget.grid.length * maxColumns,
-              itemBuilder: (context, index) {
-                final int row = index ~/ maxColumns;
-                final int col = index % maxColumns;
-
-                // Check if this position exists in the irregular grid
-                if (row >= widget.grid.length ||
-                    col >= widget.grid[row].length) {
-                  return const SizedBox(); // Empty space for non-existent positions
-                }
-
-                final value = widget.grid[row][col];
-
-                // Empty tile (0)
-                if (value == 0) {
-                  // Check if this empty tile is adjacent to the selected tile
-                  String? foundDirection;
-                  adjacentEmptyPositions.forEach((direction, position) {
-                    if (position[0] == row && position[1] == col) {
-                      foundDirection = direction;
-                    }
-                  });
-
-                  if (foundDirection != null) {
-                    // Show a styled indicator on this empty tile
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0.8, end: 1.0),
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.elasticOut,
-                      builder: (context, value, child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: child,
-                        );
-                      },
-                      child: GestureDetector(
-                        onTap: () =>
-                            _handleEmptyTileTap(row, col, foundDirection!),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [
-                                theme.colorScheme.secondary.withOpacity(0.9),
-                                theme.colorScheme.secondary,
-                              ],
-                            ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.colorScheme.secondary
-                                    .withOpacity(0.5),
-                                spreadRadius: 2,
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Icon(
-                              _getDirectionIcon(foundDirection!),
-                              color: Colors.white,
-                              // Scale icon based on grid size
-                              size: maxColumns > 4 ? 24 : 36,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.4),
-                                  blurRadius: 3,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          ),
+              child: Stack(
+                children: [
+                  // Background grid pattern
+                  Positioned.fill(
+                    child: Opacity(
+                      opacity: 0.05,
+                      child: CustomPaint(
+                        painter: GridPatternPainter(
+                          gridSize: maxColumns,
+                          color: theme.colorScheme.primary,
                         ),
                       ),
-                    );
-                  } else {
-                    // Regular empty tile with improved styling
-                    return Container(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        borderRadius:
-                            BorderRadius.circular(maxColumns > 4 ? 12 : 18),
-                        border: Border.all(
-                          color: theme.colorScheme.outline.withOpacity(0.25),
-                          width: 1.5,
-                        ),
-                      ),
-                    );
-                  }
-                }
-
-                // Handle tile
-                bool isSelected = _selectedRow == row && _selectedCol == col;
-                final movableDirections = _getMovableDirections(row, col);
-
-                return Hero(
-                  tag: 'tile_${row}_${col}_$value',
-                  child: GestureDetector(
-                    onPanStart: (details) =>
-                        _handleDragStart(row, col, details),
-                    onPanUpdate: (details) => _handleDragUpdate(
-                        row, col, details, adjacentEmptyPositions),
-                    onPanEnd: (_) => _handleDragEnd(row, col),
-                    child: TileWidget(
-                      value: value,
-                      movableDirections: movableDirections,
-                      onTap: () => _handleTileTap(row, col),
-                      onDirectionalTap:
-                          (direction) {}, // Not used in this approach
-                      size: tileSize, // Use dynamic size
-                      isSelected: isSelected,
                     ),
                   ),
-                );
-              },
+
+                  // The actual puzzle grid - wrapped in Center to prevent overflow
+                  Center(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(widget.grid.length, (rowIndex) {
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(
+                                widget.grid[rowIndex].length, (colIndex) {
+                              final tileValue = widget.grid[rowIndex][colIndex];
+                              final isSelectedTile = _selectedRow == rowIndex &&
+                                  _selectedCol == colIndex;
+
+                              if (tileValue == 0) {
+                                // Empty space
+                                return _buildEmptyCell(
+                                  rowIndex,
+                                  colIndex,
+                                  tileSize,
+                                  spacing,
+                                  adjacentEmptyPositions,
+                                  theme,
+                                );
+                              } else {
+                                // Number tile
+                                return _buildTileCell(
+                                  rowIndex,
+                                  colIndex,
+                                  tileValue,
+                                  tileSize,
+                                  spacing,
+                                  isSelectedTile,
+                                  theme,
+                                );
+                              }
+                            }),
+                          );
+                        }),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -393,7 +363,132 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
     );
   }
 
-  IconData _getDirectionIcon(String direction) {
+  Widget _buildTileCell(
+    int rowIndex,
+    int colIndex,
+    int tileValue,
+    double tileSize,
+    double spacing,
+    bool isSelectedTile,
+    ThemeData theme,
+  ) {
+    final movableDirections = _getMovableDirections(rowIndex, colIndex);
+    final adjacentEmptyPositions =
+        _getAdjacentEmptyPositions(rowIndex, colIndex);
+
+    // Optional: Animate selected tiles
+    Widget tileWidget = Padding(
+      padding: EdgeInsets.all(spacing / 2),
+      child: GestureDetector(
+        onTap: () => _handleTileTap(rowIndex, colIndex),
+        onPanStart: (details) => _handleDragStart(rowIndex, colIndex, details),
+        onPanUpdate: (details) => _handleDragUpdate(
+            rowIndex, colIndex, details, adjacentEmptyPositions),
+        onPanEnd: (_) => _handleDragEnd(rowIndex, colIndex),
+        child: TileWidget(
+          value: tileValue,
+          movableDirections: movableDirections,
+          onTap: () => _handleTileTap(rowIndex, colIndex),
+          onDirectionalTap: (direction) {
+            // Not used for numbered tiles
+          },
+          size: tileSize,
+          isSelected: isSelectedTile,
+        ),
+      ),
+    );
+
+    // Apply pulsating animation to selected tile
+    if (isSelectedTile) {
+      return AnimatedBuilder(
+        animation: _pulseAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _pulseAnimation.value,
+            child: child,
+          );
+        },
+        child: tileWidget,
+      );
+    }
+
+    return tileWidget;
+  }
+
+  Widget _buildEmptyCell(
+    int rowIndex,
+    int colIndex,
+    double tileSize,
+    double spacing,
+    Map<String, List<int>> adjacentEmptyPositions,
+    ThemeData theme,
+  ) {
+    // Find if this empty cell is adjacent to the selected tile
+    String? direction;
+    if (_selectedRow != null && _selectedCol != null) {
+      for (final entry in adjacentEmptyPositions.entries) {
+        final List<int> pos = entry.value;
+        if (pos[0] == rowIndex && pos[1] == colIndex) {
+          direction = entry.key;
+          break;
+        }
+      }
+    }
+
+    final bool isAdjacent = direction != null;
+
+    return Padding(
+      padding: EdgeInsets.all(spacing / 2),
+      child: SizedBox(
+        width: tileSize,
+        height: tileSize,
+        child: isAdjacent
+            ? Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.3),
+                    width: 2,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    splashColor: theme.colorScheme.primary.withOpacity(0.3),
+                    onTap: () {
+                      if (direction != null) {
+                        _handleEmptyTileTap(rowIndex, colIndex, direction);
+                      }
+                    },
+                    child: Center(
+                      child: Icon(
+                        _getDirectionIcon(direction),
+                        color: theme.colorScheme.primary.withOpacity(0.5),
+                        size: tileSize / 3,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.colorScheme.onSurface.withOpacity(0.05),
+                    width: 1.5,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+              ),
+      ),
+    );
+  }
+
+  IconData _getDirectionIcon(String? direction) {
     switch (direction) {
       case 'up':
         return Icons.arrow_upward_rounded;
@@ -407,4 +502,40 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
         return Icons.touch_app_rounded;
     }
   }
+}
+
+// Custom painter for the grid background pattern
+class GridPatternPainter extends CustomPainter {
+  final int gridSize;
+  final Color color;
+
+  GridPatternPainter({
+    required this.gridSize,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke;
+
+    final double cellSize = size.width / gridSize;
+
+    // Draw vertical lines
+    for (int i = 1; i < gridSize; i++) {
+      final x = cellSize * i;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+
+    // Draw horizontal lines
+    for (int i = 1; i < gridSize; i++) {
+      final y = cellSize * i;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
