@@ -327,51 +327,51 @@ class _HomeScreenState extends State<HomeScreen>
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics()),
-          slivers: [
-            SliverAppBar(
+        slivers: [
+          SliverAppBar(
               expandedHeight: 180,
-              pinned: true,
+            pinned: true,
               elevation: 0,
-              backgroundColor: customPrimary,
-              flexibleSpace: FlexibleSpaceBar(
-                title: const Text(
+            backgroundColor: customPrimary,
+            flexibleSpace: FlexibleSpaceBar(
+              title: const Text(
                   'No. Quest',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
                     fontSize: 24,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(0, 1),
-                        blurRadius: 3.0,
-                        color: Color.fromARGB(100, 0, 0, 0),
-                      ),
-                    ],
-                  ),
+                  color: Colors.white,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(0, 1),
+                      blurRadius: 3.0,
+                      color: Color.fromARGB(100, 0, 0, 0),
+                    ),
+                  ],
                 ),
-                centerTitle: true,
-                titlePadding: const EdgeInsets.only(bottom: 16),
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Background gradient for the app bar
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
+              ),
+              centerTitle: true,
+              titlePadding: const EdgeInsets.only(bottom: 16),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Background gradient for the app bar
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
                             Color(0xFF7669FF), // Lighter shade
-                            Color(0xFF5B4CFF), // Main color
+                          Color(0xFF5B4CFF), // Main color
                             Color(0xFF4F40E3), // Darker shade
-                          ],
+                        ],
                           stops: [0.0, 0.6, 1.0],
-                        ),
                       ),
                     ),
+                  ),
                     // Enhanced pattern overlay
-                    Positioned.fill(
+                  Positioned.fill(
                       child: ShaderMask(
                         shaderCallback: (Rect bounds) {
                           return LinearGradient(
@@ -384,45 +384,45 @@ class _HomeScreenState extends State<HomeScreen>
                           ).createShader(bounds);
                         },
                         blendMode: BlendMode.srcOver,
-                        child: Opacity(
+                    child: Opacity(
                           opacity: 0.1,
-                          child: Image.network(
-                            'https://www.transparenttextures.com/patterns/cubes.png',
-                            repeat: ImageRepeat.repeat,
-                          ),
-                        ),
+                      child: Image.network(
+                        'https://www.transparenttextures.com/patterns/cubes.png',
+                        repeat: ImageRepeat.repeat,
                       ),
                     ),
+                  ),
+                    ),
                     // Decorative numbers pattern with improved styling
-                    Positioned.fill(
-                      child: ShaderMask(
-                        shaderCallback: (rect) {
-                          return LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
+                  Positioned.fill(
+                    child: ShaderMask(
+                      shaderCallback: (rect) {
+                        return LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
                               Colors.white.withAlpha(40)
-                            ],
-                          ).createShader(rect);
-                        },
-                        blendMode: BlendMode.dstIn,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: List.generate(
-                            5,
-                            (index) => Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                fontSize: 60 + (index * 10),
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white.withOpacity(0.15),
-                              ),
+                          ],
+                        ).createShader(rect);
+                      },
+                      blendMode: BlendMode.dstIn,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: List.generate(
+                          5,
+                          (index) => Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              fontSize: 60 + (index * 10),
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white.withOpacity(0.15),
                             ),
                           ),
                         ),
                       ),
                     ),
+                  ),
                     // App title decorative element
                     Positioned(
                       top: 55,
@@ -457,43 +457,43 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               ),
                             ],
-                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              actions: [
-                if (_isOffline)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10.0),
-                    child: Chip(
-                      label: const Text('Offline'),
-                      labelStyle: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      backgroundColor: Colors.orange.withOpacity(0.7),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      visualDensity: VisualDensity.compact,
+            ),
+            actions: [
+              if (_isOffline)
+                Padding(
+                  padding: const EdgeInsets.only(right: 10.0),
+                  child: Chip(
+                    label: const Text('Offline'),
+                    labelStyle: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    backgroundColor: Colors.orange.withOpacity(0.7),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
                   ),
-              ],
-            ),
-            if (_isLoading)
-              const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(),
                 ),
-              )
-            else if (_puzzles.isEmpty)
-              SliverFillRemaining(
-                child: Center(
+              ),
+            ],
+          ),
+          if (_isLoading)
+            const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(),
+              ),
+            )
+          else if (_puzzles.isEmpty)
+            SliverFillRemaining(
+              child: Center(
                   child: Container(
                     padding: const EdgeInsets.all(30),
                     margin: const EdgeInsets.all(20),
@@ -508,10 +508,10 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ],
                     ),
-                    child: Column(
+                child: Column(
                       mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
@@ -519,32 +519,32 @@ class _HomeScreenState extends State<HomeScreen>
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.assignment_outlined,
+                      Icons.assignment_outlined,
                             size: 50,
-                            color: Colors.grey[400],
+                      color: Colors.grey[400],
                           ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'No Puzzles Available',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.grey[700],
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'No Puzzles Available',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.grey[700],
                             fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Check back later for new challenges',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: _refreshPuzzles,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Refresh'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: customPrimary,
-                            foregroundColor: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Check back later for new challenges',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _refreshPuzzles,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Refresh'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: customPrimary,
+                        foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
                               vertical: 12,
@@ -552,17 +552,17 @@ class _HomeScreenState extends State<HomeScreen>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
+                    ),
                 ),
-              )
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
+              ),
+            )
+          else
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
                     // Add a "Resume" button at the top if there's a next level to play
                     if (index == 0 && nextLevelToPlay != null) {
                       // Find the puzzle for the next level
@@ -659,9 +659,9 @@ class _HomeScreenState extends State<HomeScreen>
                       _animationController.forward();
                     }
 
-                    final puzzle = _puzzles[puzzleIndex];
-                    final levelNumber = _extractLevelNumber(puzzle.title);
-                    final isUnlocked = _unlockedLevels[levelNumber] ?? false;
+                  final puzzle = _puzzles[puzzleIndex];
+                  final levelNumber = _extractLevelNumber(puzzle.title);
+                  final isUnlocked = _unlockedLevels[levelNumber] ?? false;
 
                     // Create a staggered animation delay based on index
                     final Animation<double> itemAnimation = Tween<double>(
@@ -692,20 +692,20 @@ class _HomeScreenState extends State<HomeScreen>
                         );
                       },
                       child: Padding(
-                        padding: EdgeInsets.only(
+                    padding: EdgeInsets.only(
                           left: 16,
                           right: 16,
                           top: puzzleIndex == 0 ? 20 : 12,
-                          bottom: 4,
-                        ),
-                        child: LevelCard(
-                          puzzle: puzzle,
-                          isLocked: !isUnlocked,
-                          onTap: () {
-                            if (!isUnlocked) {
+                      bottom: 4,
+                    ),
+                    child: LevelCard(
+                      puzzle: puzzle,
+                      isLocked: !isUnlocked,
+                      onTap: () {
+                        if (!isUnlocked) {
                               // Show locked level message with enhanced styling
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
                                   content: Row(
                                     children: [
                                       const Icon(
@@ -722,53 +722,53 @@ class _HomeScreenState extends State<HomeScreen>
                                     ],
                                   ),
                                   backgroundColor: Colors.orange.shade800,
-                                  duration: const Duration(seconds: 2),
+                              duration: const Duration(seconds: 2),
                                   behavior: SnackBarBehavior.floating,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                ),
-                              );
-                              return;
-                            }
+                            ),
+                          );
+                          return;
+                        }
 
-                            Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder:
-                                    (context, animation, secondaryAnimation) =>
-                                        PuzzleScreen(
-                                  puzzle: puzzle,
-                                  customPrimary: customPrimary,
-                                  customSecondary: customSecondary,
-                                  onLevelComplete: () {
-                                    markLevelCompleted(levelNumber);
-                                  },
-                                ),
-                                transitionsBuilder: (context, animation,
-                                    secondaryAnimation, child) {
-                                  return FadeTransition(
-                                    opacity: animation,
-                                    child: child,
-                                  );
-                                },
+                        Navigator.push(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) =>
+                                    PuzzleScreen(
+                              puzzle: puzzle,
+                              customPrimary: customPrimary,
+                              customSecondary: customSecondary,
+                              onLevelComplete: () {
+                                markLevelCompleted(levelNumber);
+                              },
+                            ),
+                            transitionsBuilder: (context, animation,
+                                secondaryAnimation, child) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: child,
+                              );
+                            },
                                 transitionDuration:
                                     const Duration(milliseconds: 400),
-                              ),
-                            ).then((_) => _refreshPuzzles());
-                          },
-                          customPrimary: customPrimary,
-                          customSecondary: customSecondary,
+                          ),
+                        ).then((_) => _refreshPuzzles());
+                      },
+                      customPrimary: customPrimary,
+                      customSecondary: customSecondary,
                         ),
-                      ),
-                    );
-                  },
+                    ),
+                  );
+                },
                   childCount: _puzzles.isEmpty
                       ? 0
                       : (_puzzles.length + (nextLevelToPlay != null ? 1 : 0)),
-                ),
               ),
-          ],
+            ),
+        ],
         ),
       ),
     );
@@ -917,20 +917,20 @@ class _LevelCardState extends State<LevelCard>
               child: child,
             );
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
             margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-            decoration: BoxDecoration(
+          decoration: BoxDecoration(
               color: cardColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: _isHovering && !widget.isLocked
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: _isHovering && !widget.isLocked
                       ? widget.customPrimary.withAlpha(40)
                       : Colors.black.withAlpha(10),
                   blurRadius: _isHovering && !widget.isLocked ? 12 : 6,
-                  spreadRadius: _isHovering && !widget.isLocked ? 2 : 0,
+                spreadRadius: _isHovering && !widget.isLocked ? 2 : 0,
                   offset: Offset(0, _isHovering && !widget.isLocked ? 4 : 2),
                 ),
               ],
@@ -950,109 +950,109 @@ class _LevelCardState extends State<LevelCard>
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: widget.isLocked
-                      ? Colors.grey.withAlpha(100)
-                      : _isHovering
+            border: Border.all(
+              color: widget.isLocked
+                  ? Colors.grey.withAlpha(100)
+                  : _isHovering
                           ? widget.customPrimary.withAlpha(60)
-                          : Colors.transparent,
-                  width: 2,
-                ),
+                      : Colors.transparent,
+              width: 2,
+            ),
                 gradient:
                     borderGradient != null && _isHovering && !widget.isLocked
                         ? borderGradient
                         : null,
-              ),
-              child: Stack(
-                children: [
+          ),
+          child: Stack(
+            children: [
                   // Main card content
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
-                      child: Row(
-                        children: [
+                child: Row(
+                  children: [
                           // Level number circle with gradient
-                          Container(
+                    Container(
                             width: 42,
                             height: 42,
-                            decoration: BoxDecoration(
-                              gradient: widget.isLocked
-                                  ? LinearGradient(
-                                      colors: [
-                                        Colors.grey.shade400,
-                                        Colors.grey.shade500,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    )
-                                  : LinearGradient(
-                                      colors: [
-                                        widget.customPrimary,
-                                        widget.customSecondary,
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: widget.isLocked
+                      decoration: BoxDecoration(
+                        gradient: widget.isLocked
+                            ? LinearGradient(
+                                colors: [
+                                  Colors.grey.shade400,
+                                  Colors.grey.shade500,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : LinearGradient(
+                                colors: [
+                                  widget.customPrimary,
+                                  widget.customSecondary,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: widget.isLocked
                                       ? Colors.grey.withAlpha(60)
                                       : widget.customPrimary.withAlpha(60),
-                                  blurRadius: 8,
+                            blurRadius: 8,
                                   spreadRadius: 1,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                levelText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
-                              ),
-                            ),
+                            offset: const Offset(0, 3),
                           ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          levelText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                          ),
+                        ),
+                      ),
+                    ),
                           const SizedBox(width: 16),
 
-                          // Puzzle information
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // First row: Level title and User Best Time
-                                Row(
-                                  children: [
-                                    // Level title
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        widget.puzzle.title,
-                                        style: TextStyle(
+                    // Puzzle information
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // First row: Level title and User Best Time
+                          Row(
+                            children: [
+                              // Level title
+                              Expanded(
+                                flex: 2,
+                                child: Text(
+                                  widget.puzzle.title,
+                                  style: TextStyle(
                                           fontSize: 17,
-                                          fontWeight: FontWeight.bold,
-                                          color: widget.isLocked
-                                              ? Colors.grey
-                                              : widget.customPrimary,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
+                                    fontWeight: FontWeight.bold,
+                                    color: widget.isLocked
+                                        ? Colors.grey
+                                        : widget.customPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
 
-                                    // User's Best Time (without name)
-                                    if (!widget.isLocked)
-                                      Expanded(
-                                        flex: 1,
-                                        child: Row(
+                              // User's Best Time (without name)
+                              if (!widget.isLocked)
+                                Expanded(
+                                  flex: 1,
+                                  child: Row(
                                           mainAxisAlignment:
                                               MainAxisAlignment.end,
-                                          children: [
+                                    children: [
                                             Container(
                                               padding: const EdgeInsets.all(3),
                                               decoration: BoxDecoration(
@@ -1062,54 +1062,54 @@ class _LevelCardState extends State<LevelCard>
                                                     BorderRadius.circular(8),
                                               ),
                                               child: const Icon(
-                                                Icons.person,
-                                                size: 14,
-                                                color: Colors.amber,
+                                        Icons.person,
+                                        size: 14,
+                                        color: Colors.amber,
                                               ),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Flexible(
-                                              child: _isLoading
-                                                  ? const SizedBox(
-                                                      height: 14,
-                                                      width: 14,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: Colors.amber,
-                                                      ),
-                                                    )
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: _isLoading
+                                            ? const SizedBox(
+                                                height: 14,
+                                                width: 14,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Colors.amber,
+                                                ),
+                                              )
                                                   : Container(
                                                       constraints:
                                                           const BoxConstraints(
                                                               minWidth: 70),
-                                                      child: Text(
+                                                child: Text(
                                                         _formatTime(
                                                             _userBestTime),
                                                         style: const TextStyle(
                                                           fontSize: 12,
                                                           fontWeight:
                                                               FontWeight.w600,
-                                                          color: Colors.amber,
-                                                        ),
+                                                    color: Colors.amber,
+                                                  ),
                                                         overflow: TextOverflow
                                                             .visible,
                                                         softWrap: false,
-                                                      ),
-                                                    ),
-                                            ),
-                                          ],
-                                        ),
+                                                ),
+                                              ),
                                       ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
+                            ],
+                          ),
 
                                 const SizedBox(height: 8),
 
-                                // Second row: Global best time with player name
-                                if (!widget.isLocked)
-                                  Row(
-                                    children: [
+                          // Second row: Global best time with player name
+                          if (!widget.isLocked)
+                            Row(
+                              children: [
                                       Container(
                                         padding: const EdgeInsets.all(3),
                                         decoration: BoxDecoration(
@@ -1119,56 +1119,56 @@ class _LevelCardState extends State<LevelCard>
                                               BorderRadius.circular(8),
                                         ),
                                         child: Icon(
-                                          Icons.emoji_events_outlined,
-                                          size: 14,
-                                          color: widget.customSecondary,
+                                  Icons.emoji_events_outlined,
+                                  size: 14,
+                                  color: widget.customSecondary,
                                         ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: RichText(
-                                          overflow: TextOverflow.ellipsis,
-                                          text: TextSpan(
-                                            children: [
-                                              TextSpan(
-                                                text: _formatTime(
-                                                    widget.puzzle.bestTime),
-                                                style: TextStyle(
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: widget.customSecondary,
-                                                ),
-                                              ),
-                                              if (widget.puzzle.bestPlayerName
-                                                      .isNotEmpty &&
-                                                  widget.puzzle
-                                                          .bestPlayerName !=
-                                                      "Infinity" &&
-                                                  widget.puzzle.bestTime !=
-                                                      double.infinity)
-                                                TextSpan(
-                                                  text:
-                                                      " (${widget.puzzle.bestPlayerName})",
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: widget
-                                                        .customSecondary
-                                                        .withAlpha(240),
-                                                    fontStyle: FontStyle.italic,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                            ],
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: RichText(
+                                    overflow: TextOverflow.ellipsis,
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: _formatTime(
+                                              widget.puzzle.bestTime),
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                            color: widget.customSecondary,
                                           ),
                                         ),
-                                      ),
-                                    ],
+                                        if (widget.puzzle.bestPlayerName
+                                                .isNotEmpty &&
+                                                  widget.puzzle
+                                                          .bestPlayerName !=
+                                                "Infinity" &&
+                                            widget.puzzle.bestTime !=
+                                                double.infinity)
+                                          TextSpan(
+                                            text:
+                                                " (${widget.puzzle.bestPlayerName})",
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                                    color: widget
+                                                        .customSecondary
+                                                  .withAlpha(240),
+                                              fontStyle: FontStyle.italic,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
+                                ),
+                              ],
+                            ),
 
-                                // For locked levels
-                                if (widget.isLocked)
-                                  Row(
-                                    children: [
+                          // For locked levels
+                          if (widget.isLocked)
+                            Row(
+                              children: [
                                       Container(
                                         padding: const EdgeInsets.all(3),
                                         decoration: BoxDecoration(
@@ -1177,66 +1177,66 @@ class _LevelCardState extends State<LevelCard>
                                               BorderRadius.circular(8),
                                         ),
                                         child: const Icon(
-                                          Icons.lock,
-                                          size: 14,
-                                          color: Colors.grey,
-                                        ),
+                                  Icons.lock,
+                                  size: 14,
+                                  color: Colors.grey,
+                                ),
                                       ),
                                       const SizedBox(width: 6),
                                       const Expanded(
                                         child: Text(
-                                          "Locked - Complete previous level",
-                                          style: TextStyle(
+                                  "Locked - Complete previous level",
+                                  style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w500,
-                                            color: Colors.grey,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
+                                    color: Colors.grey,
                                   ),
+                                  overflow: TextOverflow.ellipsis,
+                                        ),
+                                ),
                               ],
                             ),
-                          ),
+                        ],
+                      ),
+                    ),
 
                           // Arrow icon with animation
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             width: 36,
                             height: 36,
-                            decoration: BoxDecoration(
-                              color: widget.isLocked
-                                  ? Colors.grey.withAlpha(26)
+                      decoration: BoxDecoration(
+                        color: widget.isLocked
+                            ? Colors.grey.withAlpha(26)
                                   : _isHovering
                                       ? widget.customPrimary.withAlpha(50)
                                       : widget.customPrimary.withAlpha(26),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              widget.isLocked
-                                  ? Icons.lock
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        widget.isLocked
+                            ? Icons.lock
                                   : _isHovering
                                       ? Icons.arrow_forward_rounded
-                                      : Icons.arrow_forward_ios_rounded,
+                            : Icons.arrow_forward_ios_rounded,
                               size: _isHovering ? 20 : 16,
-                              color: widget.isLocked
-                                  ? Colors.grey
-                                  : widget.customPrimary,
-                            ),
-                          ),
-                        ],
+                        color: widget.isLocked
+                            ? Colors.grey
+                            : widget.customPrimary,
                       ),
                     ),
-                  ),
+                  ],
+                      ),
+                ),
+              ),
 
-                  // Display lock overlay if level is locked
-                  if (widget.isLocked)
-                    Positioned.fill(
+              // Display lock overlay if level is locked
+              if (widget.isLocked)
+                Positioned.fill(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          decoration: BoxDecoration(
+                  child: Container(
+                    decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
@@ -1246,10 +1246,10 @@ class _LevelCardState extends State<LevelCard>
                               ],
                             ),
                           ),
-                        ),
-                      ),
                     ),
-                ],
+                  ),
+                ),
+            ],
               ),
             ),
           ),

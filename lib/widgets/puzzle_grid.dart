@@ -283,13 +283,13 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
           clipBehavior: Clip.antiAlias,
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            child: Container(
+                        child: Container(
               padding: EdgeInsets.all(spacing + 6),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
                     theme.colorScheme.surface,
                     theme.colorScheme.surface.withOpacity(0.92),
                   ],
@@ -353,14 +353,14 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
                         }),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+                              ),
+                            ],
+                          ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
   }
 
   Widget _buildTileCell(
@@ -394,9 +394,9 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
           },
           size: tileSize,
           isSelected: isSelectedTile,
-        ),
-      ),
-    );
+                        ),
+                      ),
+                    );
 
     // Apply pulsating animation to selected tile
     if (isSelectedTile) {
@@ -481,9 +481,9 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
                     color: theme.colorScheme.onSurface.withOpacity(0.05),
                     width: 1.5,
                     style: BorderStyle.solid,
-                  ),
-                ),
-              ),
+            ),
+          ),
+        ),
       ),
     );
   }
