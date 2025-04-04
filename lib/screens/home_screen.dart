@@ -360,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen>
       }
       
       // TESTING ONLY: Uncomment to unlock all levels for testing and remove before release
-      _unlockAllLevelsForTesting();
+      // _unlockAllLevelsForTesting();
     } catch (e) {
       developer.log('Error loading unlocked levels: $e', name: 'HomeScreen');
       // By default, only level 1 is unlocked
@@ -369,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen>
       });
       
       // TESTING ONLY: Uncomment to unlock all levels for testing and remove before release
-      _unlockAllLevelsForTesting();
+      // _unlockAllLevelsForTesting();
     }
   }
   
