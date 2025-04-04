@@ -1,6 +1,7 @@
 // ignore_for_file: unused_local_variable
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
@@ -1470,12 +1471,38 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                 child: Center(
                   child: Container(
                     padding: EdgeInsets.all(horizontalPadding),
-                    child: FadeTransition(
-                      opacity: _fadeAnimation,
-                      child: PuzzleGrid(
-                        grid: _currentPuzzle.grid,
-                        onTileTap: _handleTileTap,
-                      ),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width,
+                      maxHeight: MediaQuery.of(context).size.height * 0.75,
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Determine if this is a large grid (6x6 or larger)
+                        final int gridSize = math.max(
+                          _currentPuzzle.grid.length, 
+                          _currentPuzzle.grid.isNotEmpty ? _currentPuzzle.grid[0].length : 0
+                        );
+                        final bool isLargeGrid = gridSize >= 6;
+                        final bool isVeryLargeGrid = gridSize >= 8;
+                        
+                        // Adjust container padding for different grid sizes
+                        final EdgeInsets gridPadding = isVeryLargeGrid
+                            ? EdgeInsets.all(isSmallScreen ? 4.0 : 8.0)
+                            : isLargeGrid
+                                ? EdgeInsets.all(isSmallScreen ? 8.0 : 12.0)
+                                : EdgeInsets.all(isSmallScreen ? 12.0 : 16.0);
+                        
+                        return FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: Padding(
+                            padding: gridPadding,
+                            child: PuzzleGrid(
+                              grid: _currentPuzzle.grid,
+                              onTileTap: _handleTileTap,
+                            ),
+                          ),
+                        );
+                      }
                     ),
                   ),
                 ),

@@ -358,12 +358,47 @@ class _HomeScreenState extends State<HomeScreen>
           _unlockedLevels = {1: true};
         });
       }
+      
+      // TESTING ONLY: Uncomment to unlock all levels for testing and remove before release
+      _unlockAllLevelsForTesting();
     } catch (e) {
       developer.log('Error loading unlocked levels: $e', name: 'HomeScreen');
       // By default, only level 1 is unlocked
       setState(() {
         _unlockedLevels = {1: true};
       });
+      
+      // TESTING ONLY: Uncomment to unlock all levels for testing and remove before release
+      _unlockAllLevelsForTesting();
+    }
+  }
+  
+  // TESTING ONLY: Function to unlock all levels for testing purposes
+  // This should be removed or commented out before release
+  Future<void> _unlockAllLevelsForTesting() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Create a map with all levels (1-525) unlocked
+      final Map<int, bool> allUnlocked = {};
+      for (int i = 1; i <= 525; i++) {
+        allUnlocked[i] = true;
+      }
+      
+      // Save to preferences
+      final encodedMap = jsonEncode(
+          allUnlocked.map((key, value) => MapEntry(key.toString(), value)));
+      await prefs.setString('unlocked_levels', encodedMap);
+      
+      // Update in-memory state
+      setState(() {
+        _unlockedLevels = allUnlocked;
+      });
+      
+      // Log that we've unlocked all levels
+      developer.log('TEST MODE: All levels unlocked for testing', name: 'HomeScreen');
+    } catch (e) {
+      developer.log('Error unlocking all levels: $e', name: 'HomeScreen');
     }
   }
 

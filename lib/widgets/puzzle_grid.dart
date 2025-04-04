@@ -291,486 +291,359 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final gridSize = _getMaxColumns();
-    final maxDimension = math.min(
-        MediaQuery.of(context).size.width, MediaQuery.of(context).size.height);
-    final isSmallScreen = maxDimension < 360;
-    final isMediumScreen = maxDimension >= 360 && maxDimension < 600;
-    final isTablet = maxDimension >= 600;
-
-    // Improved tile size calculation logic for better responsiveness with larger grids
-    final tileSize = isTablet
-        ? (maxDimension * 0.75) /
-            math.max(gridSize, 3) // Reduce max size percentage for tablets
-        : (isMediumScreen
-            ? (maxDimension * 0.8) /
-                math.max(gridSize, 3) // Reduce for medium screens
-            : (maxDimension * 0.85) /
-                math.max(gridSize, 3)); // Reduce for small screens
-
-    // More aggressive constraints for larger grids
-    final double maxTileSize = isTablet
-        ? (gridSize > 3
-            ? 80.0
-            : 100.0) // Smaller max tile size for 4+ column grids on tablets
-        : (isMediumScreen
-            ? (gridSize > 3
-                ? 65.0
-                : 85.0) // Smaller for 4+ column grids on medium screens
-            : (gridSize > 3
-                ? 55.0
-                : 70.0)); // Smaller for 4+ column grids on small screens
-
-    // Apply min/max constraints with adjustments for larger grids
-    final adjustedTileSize = math.max(
-        isTablet
-            ? 50.0
-            : (isMediumScreen ? 40.0 : 35.0), // Smaller minimum sizes
-        math.min(maxTileSize, tileSize));
-
-    // Reduce padding for larger grids
-    final tilePadding = isTablet
-        ? (gridSize > 3 ? 4.0 : 6.0)
-        : (isMediumScreen
-            ? (gridSize > 3 ? 2.0 : 4.0)
-            : (gridSize > 3 ? 1.0 : 2.0));
-
-    // Get theme for colors
-    final theme = Theme.of(context);
-
-    return ScaleTransition(
-      scale: _gridScaleAnimation,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final availableWidth = constraints.maxWidth;
-          final availableHeight = constraints.maxHeight;
-
-          // Choose a square-like layout that fits within the constraints
-          // Add adjustment factor for larger grids to prevent overflow
-          final adaptiveFactor = gridSize > 3 ? 0.95 : 0.98;
-          final adaptiveTileSize = math.min(
-              (availableWidth * adaptiveFactor - (gridSize * tilePadding * 2)) /
-                  gridSize,
-              (availableHeight * adaptiveFactor -
-                      (widget.grid.length * tilePadding * 2)) /
-                  widget.grid.length);
-
-          // Use adjusted tile size but ensure it fits within the layout
-          final finalTileSize = math.min(adjustedTileSize, adaptiveTileSize);
-
-          // Calculate the container size to fit the grid
-          // Further reduce margins for larger grids
-          final containerWidthFactor = gridSize > 3 ? 0.9 : 0.95;
-          final containerWidth = math.min(
-              availableWidth * containerWidthFactor,
-              (finalTileSize + (tilePadding * 2)) * gridSize +
-                  (tilePadding * 2) +
-                  (isTablet ? 16 : 8) // Reduced extra space
-              );
-
-          final containerHeightFactor = gridSize > 3 ? 0.9 : 0.95;
-          final containerHeight = math.min(
-              availableHeight * containerHeightFactor,
-              (finalTileSize + (tilePadding * 2)) * widget.grid.length +
-                  (tilePadding * 2) +
-                  (isTablet ? 16 : 8) // Reduced extra space
-              );
-
-          return GestureDetector(
-            // Add global gesture detection to handle drags that move outside tile boundaries
-            onPanUpdate: (details) {
-              if (_selectedRow != null &&
-                  _selectedCol != null &&
-                  _dragStart != null) {
-                // Use the currently selected tile for updates
-                Map<String, List<int>> adjacentEmptyPos =
-                    _getAdjacentEmptyPositions(_selectedRow!, _selectedCol!);
-                _handleDragUpdate(
-                    _selectedRow!, _selectedCol!, details, adjacentEmptyPos);
-              }
-            },
-            onPanEnd: (details) {
-              if (_selectedRow != null && _selectedCol != null) {
-                // Reset the drag time tracker
-                _lastDragTime = null;
-
-                setState(() {
-                  _selectedRow = null;
-                  _selectedCol = null;
-                  _dragStart = null;
-                });
-              }
-            },
-            child: Center(
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: containerWidth,
-                  maxHeight: containerHeight,
+    final Size screenSize = MediaQuery.of(context).size;
+    final ThemeData theme = Theme.of(context);
+    final bool isTablet = screenSize.shortestSide > 600;
+    
+    // Calculate grid size (use the maximum of rows or columns)
+    int gridSize = math.max(_getMaxColumns(), widget.grid.length);
+    
+    // Determine if this is a large grid (6x6 or larger)
+    final bool isLargeGrid = gridSize >= 6;
+    final bool isVeryLargeGrid = gridSize >= 8;
+    
+    // Calculate appropriate padding for container based on grid size
+    final double containerPaddingValue = isTablet
+        ? (isVeryLargeGrid ? 8.0 : 12.0)
+        : (isVeryLargeGrid ? 4.0 : (isLargeGrid ? 6.0 : 8.0));
+    
+    // Calculate appropriate padding between tiles based on grid size
+    final double tilePadding = isTablet
+        ? (isVeryLargeGrid ? 2.0 : (isLargeGrid ? 3.0 : 4.0))
+        : (isVeryLargeGrid ? 1.0 : (isLargeGrid ? 1.5 : 2.0));
+    
+    // Calculate available space for the grid, accounting for padding
+    final double maxAvailableWidth = screenSize.width - (containerPaddingValue * 2);
+    final double maxAvailableHeight = screenSize.height * 0.7; // Use 70% of height max
+    
+    // Determine the smaller dimension to create a square grid area
+    final double availableGridArea = math.min(maxAvailableWidth, maxAvailableHeight);
+    
+    // Calculate a consistent square tile size
+    double calculatedTileSize = (availableGridArea / gridSize) - (tilePadding * 2);
+    
+    // Apply minimum size constraints to ensure readability
+    if (isVeryLargeGrid) {
+      calculatedTileSize = math.max(calculatedTileSize, isTablet ? 45.0 : 28.0);
+    } else if (isLargeGrid) {
+      calculatedTileSize = math.max(calculatedTileSize, isTablet ? 55.0 : 35.0);
+    } else {
+      calculatedTileSize = math.max(calculatedTileSize, isTablet ? 65.0 : 45.0);
+    }
+    
+    // Ensure tiles are square
+    final double finalTileSize = calculatedTileSize;
+    
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate total grid size including padding
+        final double totalWidth = (gridSize * (finalTileSize + (tilePadding * 2))) + (containerPaddingValue * 2);
+        final double totalHeight = (widget.grid.length * (finalTileSize + (tilePadding * 2))) + (containerPaddingValue * 2);
+        
+        // Use the same dimensions for width and height to ensure a square grid
+        final double containerSize = math.min(
+          math.min(totalWidth, constraints.maxWidth),
+          math.min(totalHeight, constraints.maxHeight)
+        );
+        
+        return AnimatedScale(
+          scale: _gridScaleAnimation.value,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutBack,
+          child: Container(
+            width: containerSize,
+            height: containerSize,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(isTablet ? 24 : 16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 4),
                 ),
-                width: containerWidth,
-                height: containerHeight,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(
-                      isTablet ? 28 : (gridSize > 3 ? 20 : 24)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: theme.colorScheme.primary.withOpacity(0.15),
-                      blurRadius: 25,
-                      spreadRadius: 8,
-                      offset: const Offset(0, 12),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 8,
-                      spreadRadius: 2,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
-                    width: 2,
-                  ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 4,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 2),
                 ),
-                clipBehavior: Clip.antiAlias,
-                padding: EdgeInsets.all(
-                    gridSize > 3 ? tilePadding : tilePadding + 2),
-                child: Stack(
-                  children: [
-                    // Background grid pattern
-                    Positioned.fill(
-                      child: Opacity(
-                        opacity: 0.05,
-                        child: CustomPaint(
-                          painter: GridPatternPainter(
-                            gridSize: gridSize,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
+              ],
+              border: Border.all(
+                color: theme.colorScheme.primary.withOpacity(0.12),
+                width: 1.5,
+              ),
+            ),
+            clipBehavior: Clip.antiAlias,
+            margin: EdgeInsets.zero,
+            padding: EdgeInsets.all(containerPaddingValue),
+            child: Stack(
+              children: [
+                // Background grid pattern
+                Positioned.fill(
+                  child: Opacity(
+                    opacity: 0.05,
+                    child: CustomPaint(
+                      painter: GridPatternPainter(
+                        gridSize: gridSize,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
+                  ),
+                ),
 
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: widget.grid.asMap().entries.map((rowEntry) {
-                          final rowIndex = rowEntry.key;
-                          final row = rowEntry.value;
-
-                          // Get max columns across all rows for filling in missing tiles
-                          int maxColsCount = 0;
-                          for (var r in widget.grid) {
-                            if (r.length > maxColsCount)
-                              maxColsCount = r.length;
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: gridSize / widget.grid.length,
+                    child: Padding(
+                      padding: EdgeInsets.all(isVeryLargeGrid ? 4.0 : (isLargeGrid ? 6.0 : 8.0)),
+                      child: GridView.builder(
+                        physics: NeverScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: gridSize,
+                          crossAxisSpacing: tilePadding * 2,
+                          mainAxisSpacing: tilePadding * 2,
+                          childAspectRatio: 1.0,
+                        ),
+                        itemCount: widget.grid.length * gridSize,
+                        itemBuilder: (context, index) {
+                          final rowIndex = index ~/ gridSize;
+                          final colIndex = index % gridSize;
+                          
+                          // If rowIndex is out of range, return empty SizedBox
+                          if (rowIndex >= widget.grid.length) {
+                            return const SizedBox();
                           }
-
-                          return Flexible(
-                            fit: FlexFit.loose,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // Generate the actual tiles from the grid
-                                ...row.asMap().entries.map((colEntry) {
-                                  final colIndex = colEntry.key;
-                                  final value = colEntry.value;
-
-                                  bool isSelected = _selectedRow == rowIndex &&
-                                      _selectedCol == colIndex;
-                                  bool isMovable =
-                                      _getMovableDirections(rowIndex, colIndex)
-                                          .isNotEmpty;
-                                  Map<String, List<int>> adjacentEmptyPos =
-                                      isMovable
-                                          ? _getAdjacentEmptyPositions(
-                                              rowIndex, colIndex)
-                                          : {};
-
-                                  // Get adjacent empty positions for the selected tile
-                                  Map<String, List<int>>
-                                      selectedTileAdjacentEmptyPositions = {};
-                                  if (_selectedRow != null &&
-                                      _selectedCol != null) {
-                                    selectedTileAdjacentEmptyPositions =
-                                        _getAdjacentEmptyPositions(
-                                            _selectedRow!, _selectedCol!);
-                                  }
-
-                                  // Check if this empty cell is adjacent to the selected tile
-                                  String? directionFromSelected;
-                                  if (value == 0 &&
-                                      _selectedRow != null &&
-                                      _selectedCol != null) {
-                                    for (final entry
-                                        in selectedTileAdjacentEmptyPositions
-                                            .entries) {
-                                      final List<int> pos = entry.value;
-                                      if (pos[0] == rowIndex &&
-                                          pos[1] == colIndex) {
-                                        directionFromSelected = entry.key;
-                                        break;
-                                      }
-                                    }
-                                  }
-
-                                  final bool isAdjacentEmpty =
-                                      directionFromSelected != null;
-
-                                  if (value == 0) {
-                                    // Empty space - with visual indicator when adjacent to selected tile or rock texture
-                                    return Container(
-                                      width: finalTileSize,
-                                      height: finalTileSize,
-                                      margin: EdgeInsets.all(tilePadding),
-                                      child: isAdjacentEmpty
-                                          ? Container(
-                                              decoration: BoxDecoration(
-                                                color: theme.colorScheme.primary
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        isTablet ? 16 : 12),
-                                                border: Border.all(
-                                                  color: theme
-                                                      .colorScheme.primary
-                                                      .withOpacity(0.3),
-                                                  width: 2,
-                                                  style: BorderStyle.solid,
-                                                ),
-                                              ),
-                                              child: Material(
-                                                color: Colors.transparent,
-                                                child: InkWell(
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          isTablet ? 14 : 10),
-                                                  splashColor: theme
-                                                      .colorScheme.primary
-                                                      .withOpacity(0.3),
-                                                  onTap: () {
-                                                    if (directionFromSelected !=
-                                                        null) {
-                                                      _handleEmptyTileTap(
-                                                          rowIndex,
-                                                          colIndex,
-                                                          directionFromSelected);
-                                                    }
-                                                  },
-                                                  child: Center(
-                                                    child: Icon(
-                                                      _getDirectionIcon(
-                                                          directionFromSelected),
-                                                      color: theme
-                                                          .colorScheme.primary
-                                                          .withOpacity(0.6),
-                                                      size: finalTileSize / 2.5,
-                                                      shadows: [
-                                                        Shadow(
-                                                          color: Colors.black
-                                                              .withOpacity(0.2),
-                                                          blurRadius: 3,
-                                                          offset: const Offset(
-                                                              0, 1),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            )
-                                          : Container(
-                                              decoration: BoxDecoration(
-                                                color: theme
-                                                    .colorScheme.surfaceVariant,
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        isTablet ? 16 : 12),
-                                                border: Border.all(
-                                                  color: theme
-                                                      .colorScheme.outline
-                                                      .withOpacity(0.3),
-                                                  width: 1.0,
-                                                ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.1),
-                                                    blurRadius: 2,
-                                                    spreadRadius: 0,
-                                                    offset: const Offset(0, 1),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                    );
-                                  } else {
-                                    // Regular tile - with improved transitions and animations
-                                    return AnimatedContainer(
-                                      duration:
-                                          const Duration(milliseconds: 250),
-                                      curve: Curves.easeOutCubic,
-                                      width: finalTileSize,
-                                      height: finalTileSize,
-                                      margin: EdgeInsets.all(tilePadding),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(
-                                            isTablet ? 16 : 12),
-                                        boxShadow: [
-                                          if (isSelected)
-                                            BoxShadow(
-                                              color:
-                                                  Colors.black.withOpacity(0.2),
-                                              blurRadius: 8,
-                                              spreadRadius: 1,
-                                              offset: const Offset(0, 3),
-                                            ),
-                                        ],
+                          
+                          final row = widget.grid[rowIndex];
+                          
+                          // If colIndex is out of range for this row, return rock placeholder
+                          if (colIndex >= row.length) {
+                            // Return rock placeholder
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[800],
+                                borderRadius: BorderRadius.circular(
+                                    isLargeGrid ? (isTablet ? 10 : 8) : (isTablet ? 14 : 10)),
+                                border: Border.all(
+                                  color: Colors.grey[900]!,
+                                  width: 1.0,
+                                ),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[700]!,
+                                    Colors.grey[900]!,
+                                  ],
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(isLargeGrid ? 0.2 : 0.3),
+                                    blurRadius: isLargeGrid ? 2 : 3,
+                                    spreadRadius: 0,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Stack(
+                                children: [
+                                  // Rock texture pattern
+                                  Positioned.fill(
+                                    child: Opacity(
+                                      opacity: 0.1,
+                                      child: CustomPaint(
+                                        painter: RockPatternPainter(),
                                       ),
-                                      child: AnimatedBuilder(
-                                        animation: _selectionAnimController,
-                                        builder: (context, child) {
-                                          return Transform.scale(
-                                            scale: isSelected
-                                                ? _pulseAnimation.value
-                                                : 1.0,
-                                            child: child,
-                                          );
-                                        },
-                                        child: GestureDetector(
-                                          onTap: () => _handleTileTap(
-                                              rowIndex, colIndex),
-                                          onPanStart: (details) =>
-                                              _handleDragStart(
-                                                  rowIndex, colIndex, details),
-                                          onPanUpdate: (details) {
-                                            // If this is the current selected tile, use it for updates
-                                            if (_selectedRow == rowIndex &&
-                                                _selectedCol == colIndex) {
-                                              _handleDragUpdate(
-                                                  rowIndex,
-                                                  colIndex,
-                                                  details,
-                                                  adjacentEmptyPos);
-                                            } else if (_selectedRow != null &&
-                                                _selectedCol != null) {
-                                              // Otherwise, use the currently selected tile for updates
-                                              // This allows dragging to continue even when finger moves over different tiles
-                                              _handleDragUpdate(
-                                                  _selectedRow!,
-                                                  _selectedCol!,
-                                                  details,
-                                                  adjacentEmptyPos);
-                                            }
-                                          },
-                                          onPanEnd: (details) => _handleDragEnd(
-                                              rowIndex, colIndex, details),
-                                          child: TileWidget(
-                                            value: value,
-                                            isMovable: isMovable,
-                                            isSelected: isSelected,
-                                            isTablet: isTablet,
-                                            borderRadius: isTablet ? 16 : 12,
-                                            movableDirections:
-                                                _getMovableDirections(
-                                                    rowIndex, colIndex),
-                                            onTap: () => _handleTileTap(
-                                                rowIndex, colIndex),
-                                            onDirectionalTap: (direction) {
-                                              if (adjacentEmptyPos
-                                                  .containsKey(direction)) {
-                                                widget.onTileTap(
-                                                    rowIndex, colIndex,
-                                                    direction: direction);
-                                              }
-                                            },
-                                          ),
+                                    ),
+                                  ),
+                                  // Highlights and shadows for 3D effect
+                                  Positioned.fill(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius:
+                                            BorderRadius.circular(
+                                                isLargeGrid ? (isTablet ? 8 : 6) : (isTablet ? 12 : 8)),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Colors.white
+                                                .withOpacity(0.15),
+                                            Colors.transparent,
+                                            Colors.black.withOpacity(0.2),
+                                          ],
+                                          stops: const [0.0, 0.5, 1.0],
                                         ),
                                       ),
-                                    );
-                                  }
-                                }),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          
+                          final value = row[colIndex];
+                          final bool isSelected = _selectedRow == rowIndex && _selectedCol == colIndex;
+                          final bool isMovable = _getMovableDirections(rowIndex, colIndex).isNotEmpty;
+                          final Map<String, List<int>> adjacentEmptyPos = isMovable
+                              ? _getAdjacentEmptyPositions(rowIndex, colIndex)
+                              : {};
+                              
+                          // Get adjacent empty positions for the selected tile
+                          Map<String, List<int>> selectedTileAdjacentEmptyPositions = {};
+                          if (_selectedRow != null && _selectedCol != null) {
+                            selectedTileAdjacentEmptyPositions =
+                                _getAdjacentEmptyPositions(_selectedRow!, _selectedCol!);
+                          }
 
-                                // Add rock placeholders for missing columns to make grid square
-                                ...List.generate(maxColsCount - row.length,
-                                    (index) {
-                                  return Container(
-                                    width: finalTileSize,
-                                    height: finalTileSize,
-                                    margin: EdgeInsets.all(tilePadding),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[800],
+                          // Check if this empty cell is adjacent to the selected tile
+                          String? directionFromSelected;
+                          if (value == 0 && _selectedRow != null && _selectedCol != null) {
+                            for (final entry in selectedTileAdjacentEmptyPositions.entries) {
+                              final List<int> pos = entry.value;
+                              if (pos[0] == rowIndex && pos[1] == colIndex) {
+                                directionFromSelected = entry.key;
+                                break;
+                              }
+                            }
+                          }
+
+                          final bool isAdjacentEmpty = directionFromSelected != null;
+                          
+                          if (value == 0) {
+                            // Empty space
+                            return Container(
+                              decoration: isAdjacentEmpty
+                                  ? BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(
-                                          isTablet ? 16 : 12),
+                                          isLargeGrid ? (isTablet ? 10 : 8) : (isTablet ? 14 : 10)),
                                       border: Border.all(
-                                        color: Colors.grey[900]!,
-                                        width: 1.5,
+                                        color: theme.colorScheme.primary.withOpacity(0.3),
+                                        width: isLargeGrid ? 1.5 : 2,
+                                        style: BorderStyle.solid,
                                       ),
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                        colors: [
-                                          Colors.grey[700]!,
-                                          Colors.grey[900]!,
-                                        ],
+                                    )
+                                  : BoxDecoration(
+                                      color: theme.colorScheme.surfaceVariant,
+                                      borderRadius: BorderRadius.circular(
+                                          isLargeGrid ? (isTablet ? 10 : 8) : (isTablet ? 14 : 10)),
+                                      border: Border.all(
+                                        color: theme.colorScheme.outline.withOpacity(0.3),
+                                        width: 1.0,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: Colors.black.withOpacity(0.3),
-                                          blurRadius: 3,
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 2,
                                           spreadRadius: 0,
-                                          offset: const Offset(0, 2),
+                                          offset: const Offset(0, 1),
                                         ),
                                       ],
                                     ),
-                                    child: Stack(
-                                      children: [
-                                        // Rock texture pattern
-                                        Positioned.fill(
-                                          child: Opacity(
-                                            opacity: 0.1,
-                                            child: CustomPaint(
-                                              painter: RockPatternPainter(),
-                                            ),
-                                          ),
-                                        ),
-                                        // Highlights and shadows for 3D effect
-                                        Positioned.fill(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      isTablet ? 14 : 10),
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                                colors: [
-                                                  Colors.white
-                                                      .withOpacity(0.15),
-                                                  Colors.transparent,
-                                                  Colors.black.withOpacity(0.2),
-                                                ],
-                                                stops: const [0.0, 0.5, 1.0],
+                              child: isAdjacentEmpty
+                                  ? Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(
+                                            isLargeGrid ? (isTablet ? 8 : 6) : (isTablet ? 12 : 8)),
+                                        splashColor: theme.colorScheme.primary.withOpacity(0.3),
+                                        onTap: () {
+                                          if (directionFromSelected != null) {
+                                            _handleEmptyTileTap(
+                                                rowIndex, colIndex, directionFromSelected);
+                                          }
+                                        },
+                                        child: Center(
+                                          child: Icon(
+                                            _getDirectionIcon(directionFromSelected),
+                                            color: theme.colorScheme.primary.withOpacity(0.6),
+                                            size: isLargeGrid ? finalTileSize / 2.8 : finalTileSize / 2.5,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black.withOpacity(0.2),
+                                                blurRadius: 3,
+                                                offset: const Offset(0, 1),
                                               ),
-                                            ),
+                                            ],
                                           ),
                                         ),
-                                      ],
+                                      ),
+                                    )
+                                  : null,
+                            );
+                          } else {
+                            // Regular tile
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOutCubic,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(
+                                    isLargeGrid ? (isTablet ? 10 : 8) : (isTablet ? 14 : 10)),
+                                boxShadow: [
+                                  if (isSelected)
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(isLargeGrid ? 0.15 : 0.2),
+                                      blurRadius: isLargeGrid ? 6 : 8,
+                                      spreadRadius: isLargeGrid ? 0 : 1,
+                                      offset: const Offset(0, 3),
                                     ),
+                                ],
+                              ),
+                              child: AnimatedBuilder(
+                                animation: _selectionAnimController,
+                                builder: (context, child) {
+                                  return Transform.scale(
+                                    scale: isSelected
+                                        ? (isLargeGrid ? 1.0 + (_pulseAnimation.value - 1.0) * 0.7 : _pulseAnimation.value)
+                                        : 1.0,
+                                    child: child,
                                   );
-                                }),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                                },
+                                child: GestureDetector(
+                                  onTap: () => _handleTileTap(rowIndex, colIndex),
+                                  onPanStart: (details) => _handleDragStart(rowIndex, colIndex, details),
+                                  onPanUpdate: (details) {
+                                    // If this is the current selected tile, use it for updates
+                                    if (_selectedRow == rowIndex && _selectedCol == colIndex) {
+                                      _handleDragUpdate(rowIndex, colIndex, details, adjacentEmptyPos);
+                                    } else if (_selectedRow != null && _selectedCol != null) {
+                                      // Otherwise, use the currently selected tile for updates
+                                      _handleDragUpdate(_selectedRow!, _selectedCol!, details, adjacentEmptyPos);
+                                    }
+                                  },
+                                  onPanEnd: (details) => _handleDragEnd(rowIndex, colIndex, details),
+                                  child: TileWidget(
+                                    value: value,
+                                    isMovable: isMovable,
+                                    isSelected: isSelected,
+                                    isTablet: isTablet,
+                                    size: finalTileSize,
+                                    borderRadius: isLargeGrid ? (isTablet ? 10 : 8) : (isTablet ? 14 : 10),
+                                    movableDirections: _getMovableDirections(rowIndex, colIndex),
+                                    onTap: () => _handleTileTap(rowIndex, colIndex),
+                                    onDirectionalTap: (direction) {
+                                      if (adjacentEmptyPos.containsKey(direction)) {
+                                        widget.onTileTap(rowIndex, colIndex, direction: direction);
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        },
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
