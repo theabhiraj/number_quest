@@ -420,11 +420,11 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                 // Use responsive inset padding based on screen size
                 insetPadding: EdgeInsets.symmetric(
                   horizontal: size.width * (isSmallScreen ? 0.03 : 0.05),
-                  vertical: size.height * (isSmallScreen ? 0.05 : 0.1),
+                  vertical: size.height * (isSmallScreen ? 0.03 : 0.08),
                 ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
-                    maxHeight: size.height * 0.8,
+                    maxHeight: size.height * 0.85,
                     maxWidth: size.width * 0.9,
                   ),
                   child: SingleChildScrollView(
@@ -434,37 +434,43 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                       children: [
                         // Main dialog content
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 70, 20, 20),
+                          padding: EdgeInsets.fromLTRB(
+                              size.width * (isSmallScreen ? 0.03 : 0.04),
+                              70,
+                              size.width * (isSmallScreen ? 0.03 : 0.04),
+                              size.width * (isSmallScreen ? 0.03 : 0.04)),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               // Title
-                              const Text(
+                              Text(
                                 'Puzzle Solved!',
                                 style: TextStyle(
-                                  fontSize: 24,
+                                  fontSize: isSmallScreen ? 22 : 24,
                                   fontWeight: FontWeight.bold,
                                 ),
+                                textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 12),
+                              SizedBox(height: isSmallScreen ? 8 : 12),
 
                               // Level completed text
                               Text(
                                 'You completed Level ${_extractLevelNumber(_currentPuzzle.title)}!',
-                                style: const TextStyle(
-                                  fontSize: 18,
+                                style: TextStyle(
+                                  fontSize: isSmallScreen ? 16 : 18,
                                   fontWeight: FontWeight.w500,
                                   color: Colors.black87,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
-                              const SizedBox(height: 24),
+                              SizedBox(height: isSmallScreen ? 18 : 24),
 
                               // Time container
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 20, horizontal: 16),
+                                padding: EdgeInsets.symmetric(
+                                    vertical: isSmallScreen ? 14 : 20,
+                                    horizontal: isSmallScreen ? 12 : 16),
                                 decoration: BoxDecoration(
                                   color: widget.customPrimary.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(16),
@@ -475,13 +481,13 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                     Text(
                                       'YOUR TIME',
                                       style: TextStyle(
-                                        fontSize: 14,
+                                        fontSize: isSmallScreen ? 12 : 14,
                                         fontWeight: FontWeight.w600,
                                         letterSpacing: 1.5,
                                         color: widget.customPrimary,
                                       ),
                                     ),
-                                    const SizedBox(height: 8),
+                                    SizedBox(height: isSmallScreen ? 6 : 8),
                                     // Time value
                                     Row(
                                       mainAxisAlignment:
@@ -490,16 +496,19 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                         Icon(
                                           Icons.timer,
                                           color: widget.customPrimary,
-                                          size: 30,
+                                          size: isSmallScreen ? 24 : 30,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          _formatTime(_elapsedSeconds,
-                                              _elapsedMilliseconds),
-                                          style: TextStyle(
-                                            fontSize: isSmallScreen ? 30 : 36,
-                                            fontWeight: FontWeight.bold,
-                                            color: widget.customPrimary,
+                                        SizedBox(width: isSmallScreen ? 6 : 8),
+                                        FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            _formatTime(_elapsedSeconds,
+                                                _elapsedMilliseconds),
+                                            style: TextStyle(
+                                              fontSize: isSmallScreen ? 26 : 36,
+                                              fontWeight: FontWeight.bold,
+                                              color: widget.customPrimary,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -508,14 +517,15 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                 ),
                               ),
 
-                              const SizedBox(height: 16),
+                              SizedBox(height: isSmallScreen ? 12 : 16),
 
                               // Personal best badge if achieved
                               if (isPersonalBest)
                                 Container(
                                   width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 12, horizontal: 16),
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: isSmallScreen ? 10 : 12,
+                                      horizontal: isSmallScreen ? 12 : 16),
                                   decoration: BoxDecoration(
                                     color: Colors.amber.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(16),
@@ -527,27 +537,29 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                   child: Row(
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.all(8),
+                                        padding: EdgeInsets.all(
+                                            isSmallScreen ? 6 : 8),
                                         decoration: BoxDecoration(
                                           color: Colors.amber,
                                           shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.star,
                                           color: Colors.white,
-                                          size: 20,
+                                          size: isSmallScreen ? 16 : 20,
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      SizedBox(width: isSmallScreen ? 8 : 12),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            const Text(
+                                            Text(
                                               'PERSONAL BEST!',
                                               style: TextStyle(
-                                                fontSize: 14,
+                                                fontSize:
+                                                    isSmallScreen ? 12 : 14,
                                                 fontWeight: FontWeight.bold,
                                                 color: Colors.amber,
                                               ),
@@ -555,7 +567,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                             Text(
                                               'You beat your previous best time',
                                               style: TextStyle(
-                                                fontSize: 12,
+                                                fontSize:
+                                                    isSmallScreen ? 10 : 12,
                                                 color: Colors.amber
                                                     .withOpacity(0.7),
                                               ),
@@ -567,13 +580,15 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                   ),
                                 ),
 
-                              // Record badge if achieved
+                              // New record badge if achieved
                               if (_currentTime < _currentPuzzle.bestTime)
                                 Container(
                                   width: double.infinity,
-                                  margin: const EdgeInsets.only(top: 12),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 12, horizontal: 16),
+                                  margin: EdgeInsets.only(
+                                      top: isSmallScreen ? 10 : 12),
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: isSmallScreen ? 10 : 12,
+                                      horizontal: isSmallScreen ? 12 : 16),
                                   decoration: BoxDecoration(
                                     color:
                                         widget.customSecondary.withOpacity(0.1),
@@ -587,18 +602,19 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                   child: Row(
                                     children: [
                                       Container(
-                                        padding: const EdgeInsets.all(8),
+                                        padding: EdgeInsets.all(
+                                            isSmallScreen ? 6 : 8),
                                         decoration: BoxDecoration(
                                           color: widget.customSecondary,
                                           shape: BoxShape.circle,
                                         ),
-                                        child: const Icon(
+                                        child: Icon(
                                           Icons.emoji_events,
                                           color: Colors.white,
-                                          size: 20,
+                                          size: isSmallScreen ? 16 : 20,
                                         ),
                                       ),
-                                      const SizedBox(width: 12),
+                                      SizedBox(width: isSmallScreen ? 8 : 12),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:
@@ -609,7 +625,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                                 Text(
                                                   'NEW RECORD!',
                                                   style: TextStyle(
-                                                    fontSize: 14,
+                                                    fontSize:
+                                                        isSmallScreen ? 12 : 14,
                                                     fontWeight: FontWeight.bold,
                                                     color:
                                                         widget.customSecondary,
@@ -620,7 +637,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                                   Text(
                                                     ' (${playerName})',
                                                     style: TextStyle(
-                                                      fontSize: 12,
+                                                      fontSize: isSmallScreen
+                                                          ? 10
+                                                          : 12,
                                                       fontWeight:
                                                           FontWeight.w500,
                                                       fontStyle:
@@ -635,7 +654,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                             Text(
                                               'You beat the previous best time',
                                               style: TextStyle(
-                                                fontSize: 12,
+                                                fontSize:
+                                                    isSmallScreen ? 10 : 12,
                                                 color: widget.customSecondary
                                                     .withOpacity(0.7),
                                               ),
@@ -647,13 +667,13 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                   ),
                                 ),
 
-                              SizedBox(height: isSmallScreen ? 20 : 30),
+                              SizedBox(height: isSmallScreen ? 24 : 32),
 
-                              // Action buttons in wrapped row to prevent overflow
+                              // Action buttons in wrapped row - Play Again and Back to List on top
                               Wrap(
                                 alignment: WrapAlignment.spaceEvenly,
                                 spacing: 8,
-                                runSpacing: 12,
+                                runSpacing: 10,
                                 children: [
                                   // Play Again button
                                   TextButton(
@@ -662,13 +682,14 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                       _resetPuzzle();
                                     },
                                     child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: isSmallScreen ? 6 : 8,
+                                          vertical: isSmallScreen ? 2 : 4),
                                       child: Text(
                                         'Play Again',
                                         style: TextStyle(
                                           color: widget.customPrimary,
-                                          fontSize: 16,
+                                          fontSize: isSmallScreen ? 14 : 16,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
@@ -688,13 +709,14 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(30),
                                       ),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 24, vertical: 12),
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: isSmallScreen ? 20 : 24,
+                                          vertical: isSmallScreen ? 8 : 12),
                                     ),
-                                    child: const Text(
+                                    child: Text(
                                       'Back to List',
                                       style: TextStyle(
-                                        fontSize: 16,
+                                        fontSize: isSmallScreen ? 14 : 16,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -702,151 +724,25 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                 ],
                               ),
 
-                              // Best time comparison section
+                              SizedBox(height: isSmallScreen ? 20 : 24),
+
+                              // Next Level button at the bottom
                               Container(
-                                margin: const EdgeInsets.only(top: 16),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[100],
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'BEST TIMES',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 1.0,
-                                        color: Colors.grey[700],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-
-                                    // User's best time
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.person,
-                                              color: widget.customPrimary,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'YOUR BEST:',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        Text(
-                                          _userBestTime == double.infinity
-                                              ? '--:--:--'
-                                              : _formatTime(
-                                                  _userBestTime.floor(),
-                                                  _userBestTime -
-                                                      _userBestTime.floor()),
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: widget.customPrimary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 8),
-                                    const Divider(),
-                                    const SizedBox(height: 8),
-
-                                    // Level's best time
-                                    Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.emoji_events,
-                                              color: widget.customSecondary,
-                                              size: 20,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              'LEVEL BEST:',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.grey[700],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              _currentPuzzle.bestTime ==
-                                                      double.infinity
-                                                  ? '--:--:--'
-                                                  : _formatTime(
-                                                      _currentPuzzle.bestTime
-                                                          .floor(),
-                                                      _currentPuzzle.bestTime -
-                                                          _currentPuzzle
-                                                              .bestTime
-                                                              .floor()),
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.bold,
-                                                color: widget.customSecondary,
-                                              ),
-                                            ),
-                                            if (_currentPuzzle.bestPlayerName
-                                                    .isNotEmpty &&
-                                                _currentPuzzle.bestPlayerName !=
-                                                    "Unknown" &&
-                                                _currentPuzzle.bestTime !=
-                                                    double.infinity)
-                                              Text(
-                                                ' (${_currentPuzzle.bestPlayerName})',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontStyle: FontStyle.italic,
-                                                  color: widget.customSecondary,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // Next Level button
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12),
+                                width: double.infinity,
+                                margin:
+                                    EdgeInsets.only(top: isSmallScreen ? 0 : 8),
                                 child: ElevatedButton.icon(
                                   onPressed: () {
                                     // Pop dialog first
                                     Navigator.of(context).pop();
-
                                     // Pop current level and pass 'next' parameter to indicate next level should be loaded
                                     Navigator.of(context).pop('next');
                                   },
                                   icon: const Icon(Icons.arrow_forward_rounded),
-                                  label: const Text(
+                                  label: Text(
                                     'Next Level',
                                     style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: isSmallScreen ? 16 : 18,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -857,9 +753,10 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                       borderRadius: BorderRadius.circular(30),
                                     ),
                                     padding: EdgeInsets.symmetric(
-                                      horizontal: 24,
-                                      vertical: isSmallScreen ? 10 : 12,
+                                      horizontal: isSmallScreen ? 20 : 24,
+                                      vertical: isSmallScreen ? 12 : 16,
                                     ),
+                                    elevation: 2,
                                   ),
                                 ),
                               ),
@@ -871,7 +768,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                         Positioned(
                           top: -40,
                           child: Container(
-                            padding: const EdgeInsets.all(16),
+                            padding: EdgeInsets.all(isSmallScreen ? 12 : 16),
                             decoration: BoxDecoration(
                               color: widget.customPrimary,
                               shape: BoxShape.circle,
@@ -884,10 +781,10 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                 ),
                               ],
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.workspace_premium,
                               color: Colors.white,
-                              size: 48,
+                              size: isSmallScreen ? 36 : 48,
                             ),
                           ),
                         ),
