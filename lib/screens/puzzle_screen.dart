@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/puzzle.dart';
+import '../services/connectivity_service.dart';
 import '../widgets/puzzle_grid.dart';
 
 class PuzzleScreen extends StatefulWidget {
@@ -40,6 +41,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   double _userBestTime = double.infinity; // Track user's personal best time
   String playerName = "Unknown";
   bool _isPlayerNameLoaded = false;
+  Timer? _connectivityCheckTimer;
+  final ConnectivityService _connectivityService = ConnectivityService();
+  DateTime? _startTime; // Add start time tracking
 
   @override
   void initState() {
@@ -47,15 +51,16 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     // Create a deep copy of the puzzle to work with
     _currentPuzzle = widget.puzzle.copyWith();
 
-    // Setup animations
+    // Setup animations with smoother transition
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(
+          milliseconds: 800), // Increased from 600ms for smoother animation
     );
 
     _fadeAnimation = CurvedAnimation(
       parent: _animationController,
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic, // Changed to a smoother curve
     );
 
     _animationController.forward();
@@ -63,6 +68,13 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     // Load user's best time from local storage
     _loadUserBestTime();
     _loadPlayerName();
+
+    // Check connectivity when screen opens
+    _connectivityService.checkConnectionAndShowDialog();
+
+    // Start periodic connectivity checks
+    _connectivityCheckTimer = Timer.periodic(const Duration(seconds: 30),
+        (_) => _connectivityService.checkConnectionAndShowDialog());
   }
 
   Future<void> _loadUserBestTime() async {
@@ -116,6 +128,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   @override
   void dispose() {
     _timer?.cancel();
+    _connectivityCheckTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -127,16 +140,22 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         _elapsedSeconds = 0;
         _elapsedMilliseconds = 0;
         _currentTime = 0.0;
+        _startTime = DateTime.now();
       });
       _timer = Timer.periodic(const Duration(milliseconds: 10), (timer) {
-        setState(() {
-          _elapsedMilliseconds += 0.01;
-          if (_elapsedMilliseconds >= 1) {
-            _elapsedSeconds++;
-            _elapsedMilliseconds = 0;
-          }
-          _currentTime = _elapsedSeconds + _elapsedMilliseconds;
-        });
+        if (_startTime != null) {
+          final now = DateTime.now();
+          final difference = now.difference(_startTime!);
+
+          // Calculate total seconds with millisecond precision
+          final totalSeconds = difference.inMilliseconds / 1000.0;
+
+          setState(() {
+            _elapsedSeconds = totalSeconds.floor();
+            _elapsedMilliseconds = totalSeconds - _elapsedSeconds;
+            _currentTime = totalSeconds;
+          });
+        }
       });
     }
   }
@@ -149,12 +168,26 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   }
 
   void _resetPuzzle() {
-    _stopTimer();
+    // Reset the puzzle state
     setState(() {
       _currentPuzzle = widget.puzzle.copyWith();
       _elapsedSeconds = 0;
       _elapsedMilliseconds = 0;
-      _currentTime = 0.0;
+      _isPlaying = false;
+      _startTime = null;
+
+      // Cancel any active timer
+      if (_timer != null && _timer!.isActive) {
+        _timer!.cancel();
+      }
+    });
+
+    // Use a small delay to allow the grid to be built with new state
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (mounted) {
+        // Force a rebuild of the grid by triggering a setState
+        setState(() {});
+      }
     });
   }
 
@@ -213,19 +246,22 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         targetEmptyPos = adjacentEmptyPositions.first;
       }
 
+      final gridCopy = List<List<int>>.from(
+        _currentPuzzle.grid.map((row) => List<int>.from(row)),
+      );
+
+      // Swap the tile with the empty space
+      final temp = gridCopy[row][col];
+      gridCopy[row][col] = 0;
+      gridCopy[targetEmptyPos[0]][targetEmptyPos[1]] = temp;
+
+      // Update the puzzle with the new grid
       setState(() {
-        final gridCopy = List<List<int>>.from(
-          _currentPuzzle.grid.map((row) => List<int>.from(row)),
-        );
-
-        // Swap the tile with the empty space
-        final temp = gridCopy[row][col];
-        gridCopy[row][col] = 0;
-        gridCopy[targetEmptyPos[0]][targetEmptyPos[1]] = temp;
-
         _currentPuzzle = _currentPuzzle.copyWith(grid: gridCopy);
+      });
 
-        // Check if puzzle is solved
+      // Check if puzzle is solved - always check in a microtask to avoid UI delays
+      Future.microtask(() {
         if (_currentPuzzle.isSolved()) {
           _handlePuzzleSolved();
         }
@@ -234,16 +270,427 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   }
 
   Future<void> _handlePuzzleSolved() async {
+    // Calculate the final time based on the start time for accuracy
+    if (_startTime != null) {
+      final endTime = DateTime.now();
+      final difference = endTime.difference(_startTime!);
+      _currentTime = difference.inMilliseconds / 1000.0;
+      _elapsedSeconds = _currentTime.floor();
+      _elapsedMilliseconds = _currentTime - _elapsedSeconds;
+    }
+
+    // Stop the timer
     _stopTimer();
 
-    try {
-      // Update best time in Firebase
-      final databaseRef = FirebaseDatabase.instance
-          .ref()
-          .child('numberquests/puzzles/${_currentPuzzle.id}');
+    // Process game completion data first to ensure state is properly updated
+    await _processCompletionData();
 
-      // Set final time in seconds
-      _currentTime = _elapsedSeconds + _elapsedMilliseconds;
+    // Show completion dialog after data processing
+    if (mounted) {
+      // Check if this run was a personal best
+      final isPersonalBest =
+          _currentTime < _userBestTime || (_userBestTime == double.infinity);
+
+      // Get screen size for responsive sizing
+      final size = MediaQuery.of(context).size;
+      final isSmallScreen = size.width < 360 || size.height < 600;
+
+      // Add a short delay to ensure UI is ready before showing dialog
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      if (!mounted) return; // Safety check
+
+      // Force a rebuild of the grid to clear any selections
+      setState(() {});
+
+      // Ensure the dialog is shown on the main thread
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext dialogContext) {
+              // Force layout rebuild on dialog
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (dialogContext.mounted) {
+                  // Trigger a small visual update to ensure proper rendering
+                  Future.delayed(const Duration(milliseconds: 50), () {
+                    if (dialogContext.mounted) {
+                      (dialogContext as Element).markNeedsBuild();
+                    }
+                  });
+                }
+              });
+
+              return Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                elevation: 12,
+                backgroundColor: Colors.white,
+                // Use responsive inset padding based on screen size
+                insetPadding: EdgeInsets.symmetric(
+                  horizontal: size.width * (isSmallScreen ? 0.03 : 0.05),
+                  vertical: size.height * (isSmallScreen ? 0.05 : 0.1),
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: size.height * 0.8,
+                    maxWidth: size.width * 0.9,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.topCenter,
+                      children: [
+                        // Main dialog content
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 70, 20, 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Title
+                              const Text(
+                                'Puzzle Solved!',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Level completed text
+                              Text(
+                                'You completed Level ${_extractLevelNumber(_currentPuzzle.title)}!',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black87,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Time container
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 20, horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: widget.customPrimary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  children: [
+                                    // YOUR TIME label
+                                    Text(
+                                      'YOUR TIME',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 1.5,
+                                        color: widget.customPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    // Time value
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.timer,
+                                          color: widget.customPrimary,
+                                          size: 30,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          _formatTime(_elapsedSeconds,
+                                              _elapsedMilliseconds),
+                                          style: TextStyle(
+                                            fontSize: isSmallScreen ? 30 : 36,
+                                            fontWeight: FontWeight.bold,
+                                            color: widget.customPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              const SizedBox(height: 16),
+
+                              // Personal best badge if achieved
+                              if (isPersonalBest)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.amber.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.amber.withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.star,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'PERSONAL BEST!',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.amber,
+                                              ),
+                                            ),
+                                            Text(
+                                              'You beat your previous best time',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.amber
+                                                    .withOpacity(0.7),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              // Record badge if achieved
+                              if (_currentTime < _currentPuzzle.bestTime)
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(top: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 12, horizontal: 16),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        widget.customSecondary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: widget.customSecondary
+                                          .withOpacity(0.3),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: widget.customSecondary,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.emoji_events,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  'NEW RECORD!',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                    color:
+                                                        widget.customSecondary,
+                                                  ),
+                                                ),
+                                                if (playerName.isNotEmpty &&
+                                                    playerName != "Unknown")
+                                                  Text(
+                                                    ' (${playerName})',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                      color: widget
+                                                          .customSecondary
+                                                          .withOpacity(0.8),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            Text(
+                                              'You beat the previous best time',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: widget.customSecondary
+                                                    .withOpacity(0.7),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                              SizedBox(height: isSmallScreen ? 20 : 30),
+
+                              // Action buttons in wrapped row to prevent overflow
+                              Wrap(
+                                alignment: WrapAlignment.spaceEvenly,
+                                spacing: 8,
+                                runSpacing: 12,
+                                children: [
+                                  // Play Again button
+                                  TextButton(
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      _resetPuzzle();
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      child: Text(
+                                        'Play Again',
+                                        style: TextStyle(
+                                          color: widget.customPrimary,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  // Back to List button
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      Navigator.of(context)
+                                          .pop(); // Go back to the puzzle list
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: widget.customPrimary,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(30),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 24, vertical: 12),
+                                    ),
+                                    child: const Text(
+                                      'Back to List',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              // Next Level button
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    // Pop dialog first
+                                    Navigator.of(context).pop();
+
+                                    // Pop current level and pass 'next' parameter to indicate next level should be loaded
+                                    Navigator.of(context).pop('next');
+                                  },
+                                  icon: const Icon(Icons.arrow_forward_rounded),
+                                  label: const Text(
+                                    'Next Level',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: widget.customSecondary,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                    ),
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: isSmallScreen ? 10 : 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Medal icon positioned on top
+                        Positioned(
+                          top: -40,
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: widget.customPrimary,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.workspace_premium,
+                              color: Colors.white,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        }
+      });
+    }
+  }
+
+  Future<void> _processCompletionData() async {
+    try {
+      // Call the onLevelComplete callback if provided - call this first to update level status
+      if (widget.onLevelComplete != null) {
+        widget.onLevelComplete!();
+      }
 
       // Update user's best time if this time is better
       bool isUserBestTime = false;
@@ -251,11 +698,6 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         _userBestTime = _currentTime;
         await _saveUserBestTime(_currentTime);
         isUserBestTime = true;
-      }
-
-      // Call the onLevelComplete callback if provided
-      if (widget.onLevelComplete != null) {
-        widget.onLevelComplete!();
       }
 
       if (_currentTime < _currentPuzzle.bestTime) {
@@ -269,14 +711,14 @@ class _PuzzleScreenState extends State<PuzzleScreen>
             barrierDismissible: false,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Row(
+                title: Wrap(
+                  spacing: 8,
                   children: [
                     Icon(
                       Icons.emoji_events,
                       color: widget.customSecondary,
                       size: 28,
                     ),
-                    const SizedBox(width: 12),
                     const Text('New Record!'),
                   ],
                 ),
@@ -340,387 +782,41 @@ class _PuzzleScreenState extends State<PuzzleScreen>
           });
         }
 
-        await databaseRef.update(
-            {'best_time': _currentTime, 'best_player_name': playerName});
+        try {
+          // Check connectivity before updating Firebase
+          final isConnected = await _connectivityService.checkConnection();
+          if (!isConnected) {
+            // Show dialog that requires internet connection
+            _connectivityService.checkConnectionAndShowDialog();
+            return;
+          }
 
-        setState(() {
-          _currentPuzzle = _currentPuzzle.copyWith(
-            bestTime: _currentTime,
-            bestPlayerName: playerName,
-          );
-        });
+          // Update Firebase database with new best time
+          final databaseRef = FirebaseDatabase.instance
+              .ref()
+              .child('numberquests/puzzles/${_currentPuzzle.id}');
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Congratulations! You set a new record time!'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          // Convert current time to minutes for Firebase storage
+          final minutesOnly = _currentTime / 60;
+
+          await databaseRef.update(
+              {'best_time': minutesOnly, 'best_player_name': playerName});
+
+          if (mounted) {
+            setState(() {
+              _currentPuzzle = _currentPuzzle.copyWith(
+                bestTime: _currentTime, // Keep the full time in local model
+                bestPlayerName: playerName,
+              );
+            });
+          }
+        } catch (e) {
+          // Just log the error, don't interrupt user experience with error messages
+          debugPrint('Error updating database best time: $e');
         }
-      } else if (isUserBestTime && mounted) {
-        // If only beat personal best, show a different message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You set a new personal best time!'),
-            duration: Duration(seconds: 2),
-          ),
-        );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to update best time: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-
-    // Show completion dialog
-    if (mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          // Check if this run was a personal best
-          final isPersonalBest = _currentTime < _userBestTime ||
-              (_userBestTime == _currentTime &&
-                  _userBestTime != double.infinity);
-
-          return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(24),
-            ),
-            elevation: 12,
-            backgroundColor: Colors.white,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.topCenter,
-              children: [
-                // Main dialog content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 70, 20, 20),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Title
-                      const Text(
-                        'Puzzle Solved!',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Level completed text
-                      Text(
-                        'You completed Level ${_extractLevelNumber(_currentPuzzle.title)}!',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black87,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Time container
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 20, horizontal: 16),
-                        decoration: BoxDecoration(
-                          color: widget.customPrimary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          children: [
-                            // YOUR TIME label
-                            Text(
-                              'YOUR TIME',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.5,
-                                color: widget.customPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            // Time value
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.timer,
-                                  color: widget.customPrimary,
-                                  size: 30,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  _formatTime(
-                                      _elapsedSeconds, _elapsedMilliseconds),
-                                  style: TextStyle(
-                                    fontSize: 36,
-                                    fontWeight: FontWeight.bold,
-                                    color: widget.customPrimary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      // Personal best badge if achieved
-                      if (isPersonalBest)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.amber.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.amber.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.amber,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.star,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'PERSONAL BEST!',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.amber,
-                                      ),
-                                    ),
-                                    Text(
-                                      'You beat your previous best time',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.amber.withOpacity(0.7),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      // Record badge if achieved
-                      if (_currentTime < _currentPuzzle.bestTime)
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(top: 12),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: widget.customSecondary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: widget.customSecondary.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: widget.customSecondary,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.emoji_events,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          'NEW RECORD!',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color: widget.customSecondary,
-                                          ),
-                                        ),
-                                        if (playerName.isNotEmpty &&
-                                            playerName != "Unknown")
-                                          Text(
-                                            ' (${playerName})',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              fontStyle: FontStyle.italic,
-                                              color: widget.customSecondary
-                                                  .withOpacity(0.8),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    Text(
-                                      'You beat the previous best time',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: widget.customSecondary
-                                            .withOpacity(0.7),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                      const SizedBox(height: 30),
-
-                      // Action buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          // Play Again button
-                          TextButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _resetPuzzle();
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              child: Text(
-                                'Play Again',
-                                style: TextStyle(
-                                  color: widget.customPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ),
-
-                          // Back to List button
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              Navigator.of(context)
-                                  .pop(); // Go back to the puzzle list
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: widget.customPrimary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 12),
-                            ),
-                            child: const Text(
-                              'Back to List',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      // Next Level button
-                      Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            // Pop both the dialog and the current level
-                            Navigator.of(context).pop();
-                            Navigator.of(context).pop();
-                            // The home screen will have the next level unlocked
-                          },
-                          icon: const Icon(Icons.arrow_forward_rounded),
-                          label: const Text(
-                            'Next Level',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: widget.customSecondary,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Medal icon positioned on top
-                Positioned(
-                  top: -40,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: widget.customPrimary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.workspace_premium,
-                      color: Colors.white,
-                      size: 48,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      );
+      debugPrint('Error in _processCompletionData: $e');
     }
   }
 
@@ -739,258 +835,452 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     return 0; // Default to level 0 if no level found
   }
 
+  // Format time for display with seconds and milliseconds
   String _formatTime(int seconds, double milliseconds) {
-    // Calculate total seconds including the fractional part
-    final totalSeconds = seconds + milliseconds;
-
     // Extract minutes and seconds
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
 
-    // Format milliseconds with 2 decimal places for more complete display
+    // Format milliseconds with 2 decimal places for more precise display
+    // Ensure we're rounding correctly to get accurate millisecond values
     final formattedMilliseconds =
         (milliseconds * 100).round().toString().padLeft(2, '0');
 
-    // Format as minutes:seconds.milliseconds for better space efficiency
-    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}.${formattedMilliseconds}';
+    // Format as minutes:seconds:milliseconds
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}:${formattedMilliseconds}';
+  }
+
+  // Format time for display in the UI header - no arguments version
+  String _formatCurrentTime() {
+    return _formatTime(_elapsedSeconds, _elapsedMilliseconds);
+  }
+
+  // Format time for display in best times section
+  String _formatDisplayTime(double time) {
+    if (time == double.infinity) {
+      return '00:00:00';
+    }
+
+    final seconds = time.floor();
+    final milliseconds = (time - seconds);
+    return _formatTime(seconds, milliseconds);
+  }
+
+  void _showHint() {
+    // Use hints array instead of hint property
+    if (_currentPuzzle.hints.isEmpty) return;
+
+    // Show a random hint
+    final hint = _currentPuzzle
+        .hints[DateTime.now().millisecond % _currentPuzzle.hints.length];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Wrap(
+          spacing: 8,
+          children: [
+            Icon(Icons.lightbulb, color: widget.customSecondary),
+            const Text('Hint'),
+          ],
+        ),
+        content: Text(hint),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                Text('Got it', style: TextStyle(color: widget.customPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _checkSolution() {
+    if (_currentPuzzle.isSolved()) {
+      _handlePuzzleSolved();
+    } else {
+      // Show a message that the puzzle is not solved yet
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Not solved yet. Keep trying!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _showExitConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Wrap(
+          spacing: 8,
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            const Text('Leave Puzzle?'),
+          ],
+        ),
+        content: const Text('Your progress will be lost if you leave now.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Stay', style: TextStyle(color: widget.customPrimary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final levelNumber = _extractLevelNumber(_currentPuzzle.title);
+    // Get screen size for responsive design
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 360;
+    final isMediumScreen = screenSize.width >= 360 && screenSize.width < 600;
+    final isTablet = screenSize.width >= 600;
+
+    // Calculate responsive padding and sizing
+    final horizontalPadding = isTablet ? 24.0 : (isMediumScreen ? 16.0 : 12.0);
+    final verticalPadding = isTablet ? 20.0 : (isMediumScreen ? 16.0 : 12.0);
+    final titleFontSize = isTablet ? 28.0 : (isMediumScreen ? 24.0 : 20.0);
+    final subtitleFontSize = isTablet ? 18.0 : (isMediumScreen ? 16.0 : 14.0);
+    final buttonPadding = isTablet
+        ? const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
+        : (isMediumScreen
+            ? const EdgeInsets.symmetric(horizontal: 20, vertical: 12)
+            : const EdgeInsets.symmetric(horizontal: 16, vertical: 10));
 
     return WillPopScope(
       onWillPop: () async {
         if (_isPlaying) {
-          final shouldPop = await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.red),
-                  const SizedBox(width: 8),
-                  const Text('Leave Puzzle?'),
-                ],
-              ),
-              content:
-                  const Text('Your progress will be lost if you leave now.'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text('Stay',
-                      style: TextStyle(color: widget.customPrimary)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: const Text('Leave'),
-                ),
-              ],
-            ),
-          );
-          return shouldPop ?? false;
+          _showExitConfirmation();
+          return false;
         }
         return true;
       },
       child: Scaffold(
-        extendBodyBehindAppBar: true,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: null,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            onPressed: () async {
-              if (_isPlaying) {
-                final shouldPop = await showDialog<bool>(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Row(
-                      children: [
-                        Icon(Icons.warning_amber_rounded, color: Colors.red),
-                        const SizedBox(width: 8),
-                        const Text('Leave Puzzle?'),
-                      ],
-                    ),
-                    content: const Text(
-                        'Your progress will be lost if you leave now.'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: Text('Stay',
-                            style: TextStyle(color: widget.customPrimary)),
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
-                        ),
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Leave'),
-                      ),
-                    ],
+          backgroundColor: widget.customPrimary,
+          title: Row(
+            children: [
+              // CircleAvatar(
+              //   backgroundColor: Colors.white.withOpacity(0.2),
+              //   child: Text(
+              //     _extractLevelNumber(_currentPuzzle.title).toString(),
+              //     style: TextStyle(
+              //       color: Colors.white,
+              //       fontWeight: FontWeight.bold,
+              //       fontSize: isTablet ? 16 : 14,
+              //     ),
+              //   ),
+              // ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'No. Quest',
+                  style: TextStyle(
+                    fontSize: isTablet ? 18 : 15,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
-                );
-                if (shouldPop ?? false) {
-                  if (mounted) Navigator.of(context).pop();
-                }
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              if (_isPlaying) {
+                _showExitConfirmation();
               } else {
                 Navigator.of(context).pop();
               }
             },
           ),
-        ),
-        body: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  widget.customPrimary.withAlpha(26), // ~0.1 opacity
-                  Colors.white,
-                ],
+          actions: [
+            // Timer display
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: isTablet ? 12 : 8),
+              constraints: BoxConstraints(maxWidth: isTablet ? 200 : 160),
+              child: Center(
+                child: RichText(
+                  overflow: TextOverflow.ellipsis,
+                  text: TextSpan(
+                    children: [
+                      const TextSpan(
+                        text: 'Time: ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      TextSpan(
+                        text: _formatCurrentTime(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                          fontSize: isTablet ? 16 : 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  // Timer card only at the top
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Timer card - only the current running time
-                        Expanded(
-                          child: TimerCard(
-                            time: _formatTime(
-                                _elapsedSeconds, _elapsedMilliseconds),
-                            isRunning: _isPlaying,
-                            customPrimary: widget.customPrimary,
-                            onReset: _resetPuzzle,
-                          ),
-                        ),
-                      ],
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Puzzle header with instructions and best times
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: verticalPadding / 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      spreadRadius: 1,
                     ),
-                  ),
-
-                  // Puzzle title
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-                    child: Text(
-                      _currentPuzzle.title,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: widget.customPrimary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-
-                  // Puzzle description
-                  if (_currentPuzzle.description.isNotEmpty)
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Instructions - use description instead of instructions
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 2),
+                      padding: EdgeInsets.only(bottom: verticalPadding / 2),
                       child: Text(
                         _currentPuzzle.description,
                         style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[700],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-
-                  // Puzzle grid - increase the space allocated to the grid
-                  Expanded(
-                    flex:
-                        6, // Increase flex for more space since we removed hints
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 4, horizontal: 8),
-                        child: PuzzleGrid(
-                          grid: _currentPuzzle.grid,
-                          onTileTap: _handleTileTap,
+                          fontSize: subtitleFontSize,
+                          color: Colors.black87,
                         ),
                       ),
                     ),
-                  ),
-
-                  // Best times section below the grid
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(1, 2, 16, 4),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                    // Best times
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Section header
+                        // Global best time
                         Row(
                           children: [
-                            Icon(
-                              Icons.timer,
-                              color: widget.customPrimary.withOpacity(0.7),
-                              size: 14,
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: widget.customSecondary.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.emoji_events_outlined,
+                                size: isTablet ? 18 : 14,
+                                color: widget.customSecondary,
+                              ),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              "BEST TIMES",
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.0,
-                                color: widget.customPrimary.withOpacity(0.8),
+                            SizedBox(width: isTablet ? 8 : 4),
+                            RichText(
+                              text: TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Best: ',
+                                    style: TextStyle(
+                                      fontSize: isTablet ? 15 : 13,
+                                      color: Colors.black54,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: _formatDisplayTime(
+                                        _currentPuzzle.bestTime),
+                                    style: TextStyle(
+                                      fontSize: isTablet ? 15 : 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: widget.customSecondary,
+                                    ),
+                                  ),
+                                  if (_currentPuzzle
+                                          .bestPlayerName.isNotEmpty &&
+                                      _currentPuzzle.bestPlayerName !=
+                                          "Infinity" &&
+                                      _currentPuzzle.bestTime !=
+                                          double.infinity)
+                                    TextSpan(
+                                      text:
+                                          " (${_currentPuzzle.bestPlayerName})",
+                                      style: TextStyle(
+                                        fontSize: isTablet ? 14 : 12,
+                                        color: widget.customSecondary
+                                            .withOpacity(0.8),
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        // Time cards
-                        SizedBox(
-                          height: 70,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Best time card
-                              Expanded(
-                                child: BestTimeCard(
-                                  bestTime: _formatTime(
-                                    _currentPuzzle.bestTime.floor(),
-                                    _currentPuzzle.bestTime % 1,
+                        // User's best time
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.person,
+                                size: isTablet ? 18 : 14,
+                                color: Colors.amber,
+                              ),
+                            ),
+                            SizedBox(width: isTablet ? 8 : 4),
+                            RichText(
+                              text: TextSpan(
+                                children: [
+                                  TextSpan(
+                                    text: 'Your best: ',
+                                    style: TextStyle(
+                                      fontSize: isTablet ? 15 : 13,
+                                      color: Colors.black54,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
-                                  customSecondary: widget.customSecondary,
-                                ),
+                                  TextSpan(
+                                    text: _formatDisplayTime(_userBestTime),
+                                    style: TextStyle(
+                                      fontSize: isTablet ? 15 : 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.amber,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              // User's best time card
-                              Expanded(
-                                child: UserBestTimeCard(
-                                  userBestTime: _userBestTime != double.infinity
-                                      ? _formatTime(
-                                          _userBestTime.floor(),
-                                          _userBestTime % 1,
-                                        )
-                                      : "",
-                                  customColor: Colors.amber,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              // Puzzle grid (main content)
+              Expanded(
+                child: Center(
+                  child: Container(
+                    padding: EdgeInsets.all(horizontalPadding),
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: PuzzleGrid(
+                        grid: _currentPuzzle.grid,
+                        onTileTap: _handleTileTap,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Bottom control buttons
+              Container(
+                padding: EdgeInsets.all(horizontalPadding),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Reset button
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.refresh),
+                      label: Text(
+                        'Reset',
+                        style: TextStyle(
+                          fontSize: isTablet ? 16 : 14,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: buttonPadding,
+                        backgroundColor: Colors.grey.shade200,
+                        foregroundColor: Colors.black87,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _resetPuzzle,
+                    ),
+                    // Hint button
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.lightbulb_outline),
+                      label: Text(
+                        'Hint',
+                        style: TextStyle(
+                          fontSize: isTablet ? 16 : 14,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: buttonPadding,
+                        backgroundColor:
+                            widget.customSecondary.withOpacity(0.1),
+                        foregroundColor: widget.customSecondary,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _currentPuzzle.hints.isEmpty
+                          ? null
+                          : () => _showHint(),
+                    ),
+                    // Check button
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: Text(
+                        'Check',
+                        style: TextStyle(
+                          fontSize: isTablet ? 16 : 14,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        padding: buttonPadding,
+                        backgroundColor: widget.customPrimary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => _checkSolution(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

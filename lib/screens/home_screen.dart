@@ -1,13 +1,15 @@
-// ignore_for_file: unused_field
+// ignore_for_file: unused_field, unused_local_variable
 
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/puzzle.dart';
+import '../services/connectivity_service.dart';
 import 'puzzle_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -27,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen>
   Map<int, bool> _unlockedLevels = {};
   late AnimationController _animationController;
   late Animation<double> _staggeredAnimation;
+  Timer? _connectivityCheckTimer;
+  final ConnectivityService _connectivityService = ConnectivityService();
 
   @override
   void initState() {
@@ -35,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen>
     // Initialize animation controller
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 500),
     );
 
     _staggeredAnimation = CurvedAnimation(
@@ -45,11 +49,16 @@ class _HomeScreenState extends State<HomeScreen>
 
     _loadPuzzles();
     _loadUnlockedLevels();
+
+    // Start periodic connectivity checks
+    _connectivityCheckTimer = Timer.periodic(const Duration(seconds: 30),
+        (_) => _connectivityService.checkConnectionAndShowDialog());
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _connectivityCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -72,6 +81,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _fetchPuzzlesFromFirebase() async {
     try {
+      // Check connectivity before fetching puzzles
+      final isConnected = await _connectivityService.checkConnection();
+      if (!isConnected) {
+        // Show dialog that requires internet connection
+        _connectivityService.checkConnectionAndShowDialog();
+        throw Exception('No internet connection');
+      }
+
       final snapshot = await _database.get();
       if (!mounted) return;
 
@@ -142,25 +159,14 @@ class _HomeScreenState extends State<HomeScreen>
         });
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Working offline with cached puzzles.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          _showOfflineDialog();
         }
       } else {
         if (mounted) {
           setState(() {
             _isLoading = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'No internet connection and no cached puzzles available.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showNoInternetDialog();
         }
       }
     } catch (e) {
@@ -175,6 +181,105 @@ class _HomeScreenState extends State<HomeScreen>
         );
       }
     }
+  }
+
+  void _showOfflineDialog() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Working offline with cached puzzles.'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false, // Prevent dialog dismiss on back button
+        child: AlertDialog(
+          title: Wrap(
+            spacing: 8,
+            children: const [
+              Icon(Icons.signal_wifi_connected_no_internet_4,
+                  color: Colors.red),
+              Text('No Internet Connection'),
+            ],
+          ),
+          content: const Text(
+            'Please connect to the internet to access the latest puzzles and leaderboards.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                final hasInternet =
+                    await _connectivityService.checkConnection();
+                if (hasInternet) {
+                  Navigator.of(context).pop();
+                  _refreshPuzzles();
+                } else {
+                  // Vibrate or show feedback that internet is still unavailable
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Still no internet connection. Please check your settings.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Check Again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showNoInternetDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => WillPopScope(
+        onWillPop: () async => false, // Prevent dialog dismiss on back button
+        child: AlertDialog(
+          title: Wrap(
+            spacing: 8,
+            children: const [
+              Icon(Icons.signal_wifi_connected_no_internet_4,
+                  color: Colors.red),
+              Text('No Internet Connection'),
+            ],
+          ),
+          content: const Text(
+            'Please connect to the internet to use Number Quest. The app requires an internet connection to download puzzles.',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () async {
+                final hasInternet =
+                    await _connectivityService.checkConnection();
+                if (hasInternet) {
+                  Navigator.of(context).pop();
+                  _refreshPuzzles();
+                } else {
+                  // Vibrate or show feedback that internet is still unavailable
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          'Still no internet connection. Please check your settings.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Check Again'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _sortPuzzles() {
@@ -208,6 +313,14 @@ class _HomeScreenState extends State<HomeScreen>
     });
 
     try {
+      // Check connectivity before refreshing puzzles
+      final isConnected = await _connectivityService.checkConnection();
+      if (!isConnected) {
+        // Show dialog that requires internet connection
+        await _connectivityService.checkConnectionAndShowDialog();
+        throw Exception('No internet connection');
+      }
+
       await _fetchPuzzlesFromFirebase();
     } catch (e) {
       if (mounted) {
@@ -226,11 +339,14 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final prefs = await SharedPreferences.getInstance();
       // Get unlocked levels from SharedPreferences
-      final completedLevelsJson = prefs.getString('completed_levels');
+      final unlockedJson = prefs.getString('unlocked_levels');
 
-      if (completedLevelsJson != null) {
-        final completedLevels = List<int>.from(jsonDecode(completedLevelsJson));
-        _determineUnlockedLevels(completedLevels);
+      if (unlockedJson != null) {
+        final Map<String, dynamic> decodedMap = jsonDecode(unlockedJson);
+        _unlockedLevels = {};
+        decodedMap.forEach((key, value) {
+          _unlockedLevels[int.parse(key)] = value;
+        });
       } else {
         // By default, only level 1 is unlocked
         setState(() {
@@ -246,40 +362,46 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _determineUnlockedLevels(List<int> completedLevels) {
-    final Map<int, bool> unlockedLevels = {};
-
-    // Level 1 is always unlocked
-    unlockedLevels[1] = true;
-
-    // If player completed level N, unlock level N+1
-    for (final level in completedLevels) {
-      unlockedLevels[level] = true;
-      unlockedLevels[level + 1] = true;
-    }
-
-    setState(() {
-      _unlockedLevels = unlockedLevels;
-    });
-  }
-
+  // Mark the level as completed in user preferences
   Future<void> markLevelCompleted(int levelNumber) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final completedLevelsJson = prefs.getString('completed_levels');
 
-      final List<int> completedLevels = completedLevelsJson != null
-          ? List<int>.from(jsonDecode(completedLevelsJson))
-          : [];
+      // First get current unlocked levels
+      Map<int, bool> currentUnlocked = {};
 
-      if (!completedLevels.contains(levelNumber)) {
-        completedLevels.add(levelNumber);
-        await prefs.setString('completed_levels', jsonEncode(completedLevels));
+      // Load existing unlocked levels
+      final unlockedJson = prefs.getString('unlocked_levels');
+      if (unlockedJson != null) {
+        final Map<String, dynamic> decodedMap = jsonDecode(unlockedJson);
+        decodedMap.forEach((key, value) {
+          currentUnlocked[int.parse(key)] = value;
+        });
       }
 
-      _determineUnlockedLevels(completedLevels);
+      // Mark this level as completed/unlocked
+      currentUnlocked[levelNumber] = true;
+
+      // Also unlock the next level
+      currentUnlocked[levelNumber + 1] = true;
+
+      // Save back to preferences
+      final encodedMap = jsonEncode(
+          currentUnlocked.map((key, value) => MapEntry(key.toString(), value)));
+
+      await prefs.setString('unlocked_levels', encodedMap);
+
+      // Update in-memory state if mounted
+      if (mounted) {
+        setState(() {
+          _unlockedLevels = currentUnlocked;
+        });
+      }
+
+      // Set the next level to play for the resume button
+      await prefs.setInt('next_level_to_play', levelNumber + 1);
     } catch (e) {
-      developer.log('Error saving completed level: $e', name: 'HomeScreen');
+      debugPrint('Error marking level completed: $e');
     }
   }
 
@@ -298,11 +420,56 @@ class _HomeScreenState extends State<HomeScreen>
     return 0; // Default to level 0 if no level found
   }
 
+  void _navigateToPuzzle(Puzzle puzzle) async {
+    // Define customPrimary and customSecondary here
+    const customPrimary = Color(0xFF5B4CFF);
+    const customSecondary = Color(0xFF52C9DF);
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PuzzleScreen(
+          puzzle: puzzle,
+          customPrimary: customPrimary,
+          customSecondary: customSecondary,
+          onLevelComplete: () {
+            // Mark this level as completed in user preferences
+            markLevelCompleted(_extractLevelNumber(puzzle.title));
+          },
+        ),
+      ),
+    );
+
+    // After returning from the puzzle screen
+    if (mounted) {
+      // Always refresh puzzles list to ensure unlocked levels are updated
+      await _refreshPuzzles();
+
+      // Check if result is 'next' to navigate to the next level
+      if (result == 'next') {
+        // Find the next puzzle
+        int currentIndex = _puzzles.indexWhere((p) => p.id == puzzle.id);
+        if (currentIndex != -1 && currentIndex < _puzzles.length - 1) {
+          // Small delay to ensure UI is updated before navigating
+          await Future.delayed(const Duration(milliseconds: 100));
+          // Navigate to the next puzzle
+          _navigateToPuzzle(_puzzles[currentIndex + 1]);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     const customPrimary = Color(0xFF5B4CFF);
     const customSecondary = Color(0xFF52C9DF);
+
+    // Get screen size for responsive design
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 360;
+    final isMediumScreen = screenSize.width >= 360 && screenSize.width < 600;
+    final isTablet = screenSize.width >= 600;
 
     // Find the next unlocked level for the resume button
     int? nextLevelToPlay;
@@ -327,51 +494,51 @@ class _HomeScreenState extends State<HomeScreen>
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics()),
-        slivers: [
-          SliverAppBar(
-              expandedHeight: 180,
-            pinned: true,
+          slivers: [
+            SliverAppBar(
+              expandedHeight: isTablet ? 220 : (isMediumScreen ? 190 : 170),
+              pinned: true,
               elevation: 0,
-            backgroundColor: customPrimary,
-            flexibleSpace: FlexibleSpaceBar(
-              title: const Text(
+              backgroundColor: customPrimary,
+              flexibleSpace: FlexibleSpaceBar(
+                title: const Text(
                   'No. Quest',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
                     fontSize: 24,
-                  color: Colors.white,
-                  shadows: [
-                    Shadow(
-                      offset: Offset(0, 1),
-                      blurRadius: 3.0,
-                      color: Color.fromARGB(100, 0, 0, 0),
-                    ),
-                  ],
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        offset: Offset(0, 1),
+                        blurRadius: 3.0,
+                        color: Color.fromARGB(100, 0, 0, 0),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              centerTitle: true,
-              titlePadding: const EdgeInsets.only(bottom: 16),
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Background gradient for the app bar
-                  Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
+                centerTitle: true,
+                titlePadding: const EdgeInsets.only(bottom: 16),
+                background: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Background gradient for the app bar
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
                             Color(0xFF7669FF), // Lighter shade
-                          Color(0xFF5B4CFF), // Main color
+                            Color(0xFF5B4CFF), // Main color
                             Color(0xFF4F40E3), // Darker shade
-                        ],
+                          ],
                           stops: [0.0, 0.6, 1.0],
+                        ),
                       ),
                     ),
-                  ),
                     // Enhanced pattern overlay
-                  Positioned.fill(
+                    Positioned.fill(
                       child: ShaderMask(
                         shaderCallback: (Rect bounds) {
                           return LinearGradient(
@@ -384,70 +551,81 @@ class _HomeScreenState extends State<HomeScreen>
                           ).createShader(bounds);
                         },
                         blendMode: BlendMode.srcOver,
-                    child: Opacity(
+                        child: Opacity(
                           opacity: 0.1,
-                      child: Image.network(
-                        'https://www.transparenttextures.com/patterns/cubes.png',
-                        repeat: ImageRepeat.repeat,
-                      ),
-                    ),
-                  ),
-                    ),
-                    // Decorative numbers pattern with improved styling
-                  Positioned.fill(
-                    child: ShaderMask(
-                      shaderCallback: (rect) {
-                        return LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                              Colors.white.withAlpha(40)
-                          ],
-                        ).createShader(rect);
-                      },
-                      blendMode: BlendMode.dstIn,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: List.generate(
-                          5,
-                          (index) => Text(
-                            '${index + 1}',
-                            style: TextStyle(
-                              fontSize: 60 + (index * 10),
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white.withOpacity(0.15),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: RadialGradient(
+                                center: Alignment.center,
+                                radius: 1.0,
+                                colors: [
+                                  Colors.white.withOpacity(0.4),
+                                  Colors.white.withOpacity(0.1),
+                                ],
+                                stops: const [0.2, 1.0],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                    // Decorative numbers pattern with improved styling
+                    Positioned.fill(
+                      child: ShaderMask(
+                        shaderCallback: (rect) {
+                          return LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.white.withAlpha(40)
+                            ],
+                          ).createShader(rect);
+                        },
+                        blendMode: BlendMode.dstIn,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: List.generate(
+                            5,
+                            (index) => Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontSize: isTablet
+                                    ? (70 + (index * 12))
+                                    : (50 + (index * 10)),
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white.withOpacity(0.15),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                     // App title decorative element
                     Positioned(
-                      top: 55,
+                      top: isTablet ? 75 : 55,
                       left: 0,
                       right: 0,
                       child: Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 8,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isTablet ? 25 : 20,
+                            vertical: isTablet ? 10 : 8,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(30),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
                                 Icons.grid_3x3,
                                 color: Colors.white,
-                                size: 24,
+                                size: isTablet ? 28 : 24,
                               ),
-                              SizedBox(width: 8),
-                              Text(
+                              SizedBox(width: isTablet ? 10 : 8),
+                              const Text(
                                 'PUZZLES',
                                 style: TextStyle(
                                   color: Colors.white,
@@ -457,43 +635,23 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                               ),
                             ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              if (_isOffline)
-                Padding(
-                  padding: const EdgeInsets.only(right: 10.0),
-                  child: Chip(
-                    label: const Text('Offline'),
-                    labelStyle: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    backgroundColor: Colors.orange.withOpacity(0.7),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          if (_isLoading)
-            const SliverFillRemaining(
-              child: Center(
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else if (_puzzles.isEmpty)
-            SliverFillRemaining(
-              child: Center(
+            ),
+            if (_isLoading)
+              const SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_puzzles.isEmpty)
+              SliverFillRemaining(
+                child: Center(
                   child: Container(
                     padding: const EdgeInsets.all(30),
                     margin: const EdgeInsets.all(20),
@@ -508,10 +666,10 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ],
                     ),
-                child: Column(
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
@@ -519,32 +677,32 @@ class _HomeScreenState extends State<HomeScreen>
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                      Icons.assignment_outlined,
+                            Icons.assignment_outlined,
                             size: 50,
-                      color: Colors.grey[400],
+                            color: Colors.grey[400],
                           ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'No Puzzles Available',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.grey[700],
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          'No Puzzles Available',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: Colors.grey[700],
                             fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Check back later for new challenges',
-                      style: TextStyle(color: Colors.grey[600]),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: _refreshPuzzles,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Refresh'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: customPrimary,
-                        foregroundColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Check back later for new challenges',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _refreshPuzzles,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Refresh'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: customPrimary,
+                            foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 24,
                               vertical: 12,
@@ -552,17 +710,17 @@ class _HomeScreenState extends State<HomeScreen>
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                      ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                    ),
+                  ),
                 ),
-              ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
+              )
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
                     // Add a "Resume" button at the top if there's a next level to play
                     if (index == 0 && nextLevelToPlay != null) {
                       // Find the puzzle for the next level
@@ -577,30 +735,7 @@ class _HomeScreenState extends State<HomeScreen>
                         padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
                         child: GestureDetector(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                pageBuilder:
-                                    (context, animation, secondaryAnimation) =>
-                                        PuzzleScreen(
-                                  puzzle: resumePuzzle,
-                                  customPrimary: customPrimary,
-                                  customSecondary: customSecondary,
-                                  onLevelComplete: () {
-                                    markLevelCompleted(nextLevelToPlay!);
-                                  },
-                                ),
-                                transitionsBuilder: (context, animation,
-                                    secondaryAnimation, child) {
-                                  return FadeTransition(
-                                    opacity: animation,
-                                    child: child,
-                                  );
-                                },
-                                transitionDuration:
-                                    const Duration(milliseconds: 400),
-                              ),
-                            ).then((_) => _refreshPuzzles());
+                            _navigateToPuzzle(resumePuzzle);
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -659,9 +794,9 @@ class _HomeScreenState extends State<HomeScreen>
                       _animationController.forward();
                     }
 
-                  final puzzle = _puzzles[puzzleIndex];
-                  final levelNumber = _extractLevelNumber(puzzle.title);
-                  final isUnlocked = _unlockedLevels[levelNumber] ?? false;
+                    final puzzle = _puzzles[puzzleIndex];
+                    final levelNumber = _extractLevelNumber(puzzle.title);
+                    final isUnlocked = _unlockedLevels[levelNumber] ?? false;
 
                     // Create a staggered animation delay based on index
                     final Animation<double> itemAnimation = Tween<double>(
@@ -684,7 +819,7 @@ class _HomeScreenState extends State<HomeScreen>
                       animation: itemAnimation,
                       builder: (context, child) {
                         return Transform.translate(
-                          offset: Offset(0, 20 * (1 - itemAnimation.value)),
+                          offset: Offset(0, 10 * (1 - itemAnimation.value)),
                           child: Opacity(
                             opacity: itemAnimation.value,
                             child: child,
@@ -692,20 +827,20 @@ class _HomeScreenState extends State<HomeScreen>
                         );
                       },
                       child: Padding(
-                    padding: EdgeInsets.only(
+                        padding: EdgeInsets.only(
                           left: 16,
                           right: 16,
                           top: puzzleIndex == 0 ? 20 : 12,
-                      bottom: 4,
-                    ),
-                    child: LevelCard(
-                      puzzle: puzzle,
-                      isLocked: !isUnlocked,
-                      onTap: () {
-                        if (!isUnlocked) {
+                          bottom: 4,
+                        ),
+                        child: LevelCard(
+                          puzzle: puzzle,
+                          isLocked: !isUnlocked,
+                          onTap: () {
+                            if (!isUnlocked) {
                               // Show locked level message with enhanced styling
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
                                   content: Row(
                                     children: [
                                       const Icon(
@@ -722,53 +857,30 @@ class _HomeScreenState extends State<HomeScreen>
                                     ],
                                   ),
                                   backgroundColor: Colors.orange.shade800,
-                              duration: const Duration(seconds: 2),
+                                  duration: const Duration(seconds: 2),
                                   behavior: SnackBarBehavior.floating,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                            ),
-                          );
-                          return;
-                        }
-
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) =>
-                                    PuzzleScreen(
-                              puzzle: puzzle,
-                              customPrimary: customPrimary,
-                              customSecondary: customSecondary,
-                              onLevelComplete: () {
-                                markLevelCompleted(levelNumber);
-                              },
-                            ),
-                            transitionsBuilder: (context, animation,
-                                secondaryAnimation, child) {
-                              return FadeTransition(
-                                opacity: animation,
-                                child: child,
+                                ),
                               );
-                            },
-                                transitionDuration:
-                                    const Duration(milliseconds: 400),
-                          ),
-                        ).then((_) => _refreshPuzzles());
-                      },
-                      customPrimary: customPrimary,
-                      customSecondary: customSecondary,
+                              return;
+                            }
+
+                            _navigateToPuzzle(puzzle);
+                          },
+                          customPrimary: customPrimary,
+                          customSecondary: customSecondary,
                         ),
-                    ),
-                  );
-                },
+                      ),
+                    );
+                  },
                   childCount: _puzzles.isEmpty
                       ? 0
                       : (_puzzles.length + (nextLevelToPlay != null ? 1 : 0)),
+                ),
               ),
-            ),
-        ],
+          ],
         ),
       ),
     );
@@ -811,10 +923,10 @@ class _LevelCardState extends State<LevelCard>
     // Add pulse animation for locked levels
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 800),
     );
 
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.06).animate(
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.03).animate(
       CurvedAnimation(
         parent: _animController,
         curve: Curves.easeInOut,
@@ -848,16 +960,21 @@ class _LevelCardState extends State<LevelCard>
   Future<void> _loadUserBestTime() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        _userBestTime = prefs.getDouble('user_best_time_${widget.puzzle.id}') ??
-            double.infinity;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _userBestTime =
+              prefs.getDouble('user_best_time_${widget.puzzle.id}') ??
+                  double.infinity;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading user best time: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -872,20 +989,29 @@ class _LevelCardState extends State<LevelCard>
     final totalSeconds = time.floor();
     final minutes = totalSeconds ~/ 60;
     final seconds = totalSeconds % 60;
-    // Format milliseconds with just 1 decimal place to save space
-    final milliseconds = ((time - totalSeconds) * 10).round();
+    // Format milliseconds with 2 decimal places for precise display
+    final milliseconds = ((time - totalSeconds) * 100).round();
 
-    // Format as minutes:seconds.milliseconds for better space efficiency
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${milliseconds}';
+    // Format as minutes:seconds:milliseconds to match the puzzle screen format
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}:${milliseconds.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
+    // Get screen size for responsive design
+    final screenSize = MediaQuery.of(context).size;
+    final isSmallScreen = screenSize.width < 360;
+    final isMediumScreen = screenSize.width >= 360 && screenSize.width < 600;
+    final isTablet = screenSize.width >= 600;
+
     // Extract level number from title
     final levelRegex = RegExp(r'Level\s*(\d+)|^(\d+)');
     final match = levelRegex.firstMatch(widget.puzzle.title);
     final levelText =
         match != null ? match.group(1) ?? match.group(2) ?? '?' : '?';
+
+    // Check if this is a 3-digit level
+    final isThreeDigit = levelText.length == 3;
 
     // Determine background card color
     final cardColor = widget.isLocked ? Colors.grey[100] : Colors.white;
@@ -902,6 +1028,21 @@ class _LevelCardState extends State<LevelCard>
             ],
           );
 
+    // Adjust sizes based on screen size
+    final circleSize = isTablet ? 50.0 : (isMediumScreen ? 42.0 : 38.0);
+    final levelFontSize = isTablet
+        ? 22.0
+        : (isMediumScreen ? 20.0 : (isThreeDigit ? 16.0 : 18.0));
+    final titleFontSize = isTablet ? 19.0 : (isMediumScreen ? 17.0 : 15.0);
+    final userTimeFontSize = isTablet ? 14.0 : (isMediumScreen ? 12.0 : 11.0);
+    final bestTimeFontSize = isTablet ? 17.0 : (isMediumScreen ? 15.0 : 13.0);
+    final bestPlayerFontSize = isTablet ? 16.0 : (isMediumScreen ? 14.0 : 12.0);
+
+    // Adjust spacings
+    final horizontalPadding = isTablet ? 20.0 : (isMediumScreen ? 16.0 : 12.0);
+    final verticalPadding = isTablet ? 18.0 : (isMediumScreen ? 14.0 : 12.0);
+    final arrowSize = isTablet ? 40.0 : (isMediumScreen ? 36.0 : 30.0);
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovering = true),
       onExit: (_) => setState(() => _isHovering = false),
@@ -917,20 +1058,20 @@ class _LevelCardState extends State<LevelCard>
               child: child,
             );
           },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeInOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
             margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
-          decoration: BoxDecoration(
+            decoration: BoxDecoration(
               color: cardColor,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: _isHovering && !widget.isLocked
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: _isHovering && !widget.isLocked
                       ? widget.customPrimary.withAlpha(40)
                       : Colors.black.withAlpha(10),
                   blurRadius: _isHovering && !widget.isLocked ? 12 : 6,
-                spreadRadius: _isHovering && !widget.isLocked ? 2 : 0,
+                  spreadRadius: _isHovering && !widget.isLocked ? 2 : 0,
                   offset: Offset(0, _isHovering && !widget.isLocked ? 4 : 2),
                 ),
               ],
@@ -950,166 +1091,171 @@ class _LevelCardState extends State<LevelCard>
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: widget.isLocked
-                  ? Colors.grey.withAlpha(100)
-                  : _isHovering
+                border: Border.all(
+                  color: widget.isLocked
+                      ? Colors.grey.withAlpha(100)
+                      : _isHovering
                           ? widget.customPrimary.withAlpha(60)
-                      : Colors.transparent,
-              width: 2,
-            ),
+                          : Colors.transparent,
+                  width: 2,
+                ),
                 gradient:
                     borderGradient != null && _isHovering && !widget.isLocked
                         ? borderGradient
                         : null,
-          ),
-          child: Stack(
-            children: [
+              ),
+              child: Stack(
+                children: [
                   // Main card content
                   ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
+                      padding: EdgeInsets.symmetric(
+                          horizontal: horizontalPadding,
+                          vertical: verticalPadding),
+                      child: Row(
+                        children: [
                           // Level number circle with gradient
-                    Container(
-                            width: 42,
-                            height: 42,
-                      decoration: BoxDecoration(
-                        gradient: widget.isLocked
-                            ? LinearGradient(
-                                colors: [
-                                  Colors.grey.shade400,
-                                  Colors.grey.shade500,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              )
-                            : LinearGradient(
-                                colors: [
-                                  widget.customPrimary,
-                                  widget.customSecondary,
-                                ],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: widget.isLocked
+                          Container(
+                            width: circleSize,
+                            height: circleSize,
+                            decoration: BoxDecoration(
+                              gradient: widget.isLocked
+                                  ? LinearGradient(
+                                      colors: [
+                                        Colors.grey.shade400,
+                                        Colors.grey.shade500,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : LinearGradient(
+                                      colors: [
+                                        widget.customPrimary,
+                                        widget.customSecondary,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: widget.isLocked
                                       ? Colors.grey.withAlpha(60)
                                       : widget.customPrimary.withAlpha(60),
-                            blurRadius: 8,
+                                  blurRadius: 8,
                                   spreadRadius: 1,
-                            offset: const Offset(0, 3),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          levelText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                          const SizedBox(width: 16),
-
-                    // Puzzle information
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // First row: Level title and User Best Time
-                          Row(
-                            children: [
-                              // Level title
-                              Expanded(
-                                flex: 2,
-                                child: Text(
-                                  widget.puzzle.title,
-                                  style: TextStyle(
-                                          fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: widget.isLocked
-                                        ? Colors.grey
-                                        : widget.customPrimary,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Padding(
+                                  padding: isThreeDigit
+                                      ? EdgeInsets.symmetric(
+                                          horizontal: isTablet ? 4.0 : 2.0)
+                                      : const EdgeInsets.all(2.0),
+                                  child: Text(
+                                    levelText,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: isThreeDigit
+                                          ? (isTablet
+                                              ? 18.0
+                                              : (isMediumScreen ? 16.0 : 14.0))
+                                          : levelFontSize,
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                            ),
+                          ),
+                          SizedBox(
+                              width:
+                                  isTablet ? 20 : (isMediumScreen ? 16 : 12)),
 
-                              // User's Best Time (without name)
-                              if (!widget.isLocked)
-                                Expanded(
-                                  flex: 1,
-                                  child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                    children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(3),
-                                              decoration: BoxDecoration(
-                                                color: Colors.amber
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: const Icon(
-                                        Icons.person,
-                                        size: 14,
-                                        color: Colors.amber,
-                                              ),
+                          // Puzzle information
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // First row: Level title and User Best Time
+                                Row(
+                                  children: [
+                                    // Level title
+                                    Expanded(
+                                      flex: 2,
+                                      child: Text(
+                                        widget.puzzle.title,
+                                        style: TextStyle(
+                                          fontSize: titleFontSize,
+                                          fontWeight: FontWeight.bold,
+                                          color: widget.isLocked
+                                              ? Colors.grey
+                                              : widget.customPrimary,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(width: 4),
-                                      Flexible(
-                                        child: _isLoading
-                                            ? const SizedBox(
-                                                height: 14,
-                                                width: 14,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: Colors.amber,
-                                                ),
-                                              )
-                                                  : Container(
-                                                      constraints:
-                                                          const BoxConstraints(
-                                                              minWidth: 70),
-                                                child: Text(
-                                                        _formatTime(
-                                                            _userBestTime),
-                                                        style: const TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w600,
+                                    ),
+
+                                    // Spacer to prevent overlapping
+                                    SizedBox(width: isTablet ? 12 : 8),
+
+                                    // User's Best Time with proper spacing
+                                    if (!widget.isLocked)
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(3),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  Colors.amber.withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: const Icon(
+                                              Icons.person,
+                                              size: 14,
+                                              color: Colors.amber,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          _isLoading
+                                              ? const SizedBox(
+                                                  height: 14,
+                                                  width: 14,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                    strokeWidth: 2,
                                                     color: Colors.amber,
                                                   ),
-                                                        overflow: TextOverflow
-                                                            .visible,
-                                                        softWrap: false,
+                                                )
+                                              : Text(
+                                                  _formatTime(_userBestTime),
+                                                  style: TextStyle(
+                                                    fontSize: userTimeFontSize,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Colors.amber,
+                                                  ),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                 ),
-                                              ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                  ],
                                 ),
-                            ],
-                          ),
 
-                                const SizedBox(height: 8),
+                                SizedBox(height: isTablet ? 10 : 8),
 
-                          // Second row: Global best time with player name
-                          if (!widget.isLocked)
-                            Row(
-                              children: [
+                                // Second row: Global best time with player name
+                                if (!widget.isLocked)
+                                  Row(
+                                    children: [
                                       Container(
                                         padding: const EdgeInsets.all(3),
                                         decoration: BoxDecoration(
@@ -1119,56 +1265,57 @@ class _LevelCardState extends State<LevelCard>
                                               BorderRadius.circular(8),
                                         ),
                                         child: Icon(
-                                  Icons.emoji_events_outlined,
-                                  size: 14,
-                                  color: widget.customSecondary,
+                                          Icons.emoji_events_outlined,
+                                          size: 14,
+                                          color: widget.customSecondary,
                                         ),
-                                ),
-                                const SizedBox(width: 4),
-                                Flexible(
-                                  child: RichText(
-                                    overflow: TextOverflow.ellipsis,
-                                    text: TextSpan(
-                                      children: [
-                                        TextSpan(
-                                          text: _formatTime(
-                                              widget.puzzle.bestTime),
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                            color: widget.customSecondary,
-                                          ),
-                                        ),
-                                        if (widget.puzzle.bestPlayerName
-                                                .isNotEmpty &&
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: RichText(
+                                          overflow: TextOverflow.ellipsis,
+                                          text: TextSpan(
+                                            children: [
+                                              TextSpan(
+                                                text: _formatTime(
+                                                    widget.puzzle.bestTime),
+                                                style: TextStyle(
+                                                  fontSize: bestTimeFontSize,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: widget.customSecondary,
+                                                ),
+                                              ),
+                                              if (widget.puzzle.bestPlayerName
+                                                      .isNotEmpty &&
                                                   widget.puzzle
                                                           .bestPlayerName !=
-                                                "Infinity" &&
-                                            widget.puzzle.bestTime !=
-                                                double.infinity)
-                                          TextSpan(
-                                            text:
-                                                " (${widget.puzzle.bestPlayerName})",
-                                            style: TextStyle(
-                                              fontSize: 14,
+                                                      "Infinity" &&
+                                                  widget.puzzle.bestTime !=
+                                                      double.infinity)
+                                                TextSpan(
+                                                  text:
+                                                      " (${widget.puzzle.bestPlayerName})",
+                                                  style: TextStyle(
+                                                    fontSize:
+                                                        bestPlayerFontSize,
                                                     color: widget
                                                         .customSecondary
-                                                  .withAlpha(240),
-                                              fontStyle: FontStyle.italic,
-                                              fontWeight: FontWeight.w500,
-                                            ),
+                                                        .withAlpha(240),
+                                                    fontStyle: FontStyle.italic,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-                                      ],
-                                    ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
 
-                          // For locked levels
-                          if (widget.isLocked)
-                            Row(
-                              children: [
+                                // For locked levels
+                                if (widget.isLocked)
+                                  Row(
+                                    children: [
                                       Container(
                                         padding: const EdgeInsets.all(3),
                                         decoration: BoxDecoration(
@@ -1177,66 +1324,70 @@ class _LevelCardState extends State<LevelCard>
                                               BorderRadius.circular(8),
                                         ),
                                         child: const Icon(
-                                  Icons.lock,
-                                  size: 14,
-                                  color: Colors.grey,
-                                ),
+                                          Icons.lock,
+                                          size: 14,
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                       const SizedBox(width: 6),
                                       const Expanded(
                                         child: Text(
-                                  "Locked - Complete previous level",
-                                  style: TextStyle(
+                                          "Locked - Complete previous level",
+                                          style: TextStyle(
                                             fontSize: 13,
                                             fontWeight: FontWeight.w500,
-                                    color: Colors.grey,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                            color: Colors.grey,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                ),
+                                      ),
+                                    ],
+                                  ),
                               ],
                             ),
-                        ],
-                      ),
-                    ),
+                          ),
+
+                          // Add spacing before arrow icon to prevent overlapping
+                          SizedBox(width: isTablet ? 12 : 8),
 
                           // Arrow icon with animation
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 36,
-                            height: 36,
-                      decoration: BoxDecoration(
-                        color: widget.isLocked
-                            ? Colors.grey.withAlpha(26)
+                          Container(
+                            width: arrowSize,
+                            height: arrowSize,
+                            decoration: BoxDecoration(
+                              color: widget.isLocked
+                                  ? Colors.grey.withAlpha(26)
                                   : _isHovering
                                       ? widget.customPrimary.withAlpha(50)
                                       : widget.customPrimary.withAlpha(26),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        widget.isLocked
-                            ? Icons.lock
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              widget.isLocked
+                                  ? Icons.lock
                                   : _isHovering
                                       ? Icons.arrow_forward_rounded
-                            : Icons.arrow_forward_ios_rounded,
-                              size: _isHovering ? 20 : 16,
-                        color: widget.isLocked
-                            ? Colors.grey
-                            : widget.customPrimary,
+                                      : Icons.arrow_forward_ios_rounded,
+                              size: _isHovering
+                                  ? (isTablet ? 24 : 20)
+                                  : (isTablet ? 20 : 16),
+                              color: widget.isLocked
+                                  ? Colors.grey
+                                  : widget.customPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                      ),
-                ),
-              ),
+                  ),
 
-              // Display lock overlay if level is locked
-              if (widget.isLocked)
-                Positioned.fill(
+                  // Display lock overlay if level is locked
+                  if (widget.isLocked)
+                    Positioned.fill(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    decoration: BoxDecoration(
+                        child: Container(
+                          decoration: BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
@@ -1246,10 +1397,10 @@ class _LevelCardState extends State<LevelCard>
                               ],
                             ),
                           ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-            ],
+                ],
               ),
             ),
           ),

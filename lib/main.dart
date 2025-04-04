@@ -6,23 +6,60 @@ import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'models/puzzle.dart';
+import 'services/connectivity_service.dart';
+
+// Global navigator key to access context from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(const MyApp());
+
+  // Set orientation to portrait only
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
+  // Set system UI overlay style to transparent to prevent black screen
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+  ));
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    runApp(const MyApp());
+  } catch (e) {
+    runApp(const ErrorApp());
+  }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final ConnectivityService _connectivityService = ConnectivityService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize connectivity service with navigatorKey
+    _connectivityService.initialize(navigatorKey);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +72,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Number Quest',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey, // Set the navigator key
       theme: ThemeData(
         primaryColor: customPrimary,
         scaffoldBackgroundColor: customBackground,
@@ -93,13 +131,14 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _scaleAnimation;
   bool _isLoading = true;
   bool _hasInternet = true;
+  final ConnectivityService _connectivityService = ConnectivityService();
 
   @override
   void initState() {
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1000), // Reduced from 1500ms
     );
 
     _fadeAnimation = CurvedAnimation(
@@ -107,26 +146,46 @@ class _SplashScreenState extends State<SplashScreen>
       curve: Curves.easeIn,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
+        curve: const Interval(0.3, 0.7, curve: Curves.easeOutBack),
       ),
     );
 
+    // Start animation immediately
     _animationController.forward();
 
-    // Check for cached puzzles and internet connection
-    _checkConnection();
+    // Check for cached puzzles and internet connection after short delay
+    // This allows the splash screen to display
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _checkConnection();
+    });
   }
 
   Future<void> _checkConnection() async {
-    // Simulate network delay
-    await Future.delayed(const Duration(seconds: 2));
-
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final puzzlesJson = prefs.getString('cached_puzzles');
+      // First check for connectivity
+      _hasInternet = await _connectivityService.checkConnection();
+
+      // If no internet, see if we have cached puzzles
+      if (!_hasInternet) {
+        final prefs = await SharedPreferences.getInstance();
+        final puzzlesJson = prefs.getString('cached_puzzles');
+
+        if (puzzlesJson == null) {
+          // No internet and no cached puzzles - show error after splash animation finishes
+          _animationController.addStatusListener((status) {
+            if (status == AnimationStatus.completed && mounted) {
+              _connectivityService.checkConnectionAndShowDialog();
+            }
+          });
+          return;
+        }
+      }
+
+      // Simulate network delay - reduce to 1 second
+      await Future.delayed(const Duration(seconds: 1));
 
       // Navigate to home screen after splash animation
       if (mounted) {
@@ -184,21 +243,23 @@ class _SplashScreenState extends State<SplashScreen>
             Positioned.fill(
               child: Opacity(
                 opacity: 0.07,
-                child: Image.network(
-                  'https://www.transparenttextures.com/patterns/cubes.png',
-                  repeat: ImageRepeat.repeat,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    backgroundBlendMode: BlendMode.screen,
+                  ),
                 ),
               ),
             ),
 
             // Decorative numbers floating randomly
-            ...List.generate(12, (index) {
-              final size = 20.0 + (index * 4.0);
+            ...List.generate(6, (index) {
+              final size = 20.0 + (index * 6.0);
               final posX = 50.0 +
-                  (index * 25.0) % MediaQuery.of(context).size.width -
+                  (index * 40.0) % MediaQuery.of(context).size.width -
                   100;
               final posY = 100.0 +
-                  (index * 40.0) % MediaQuery.of(context).size.height -
+                  (index * 60.0) % MediaQuery.of(context).size.height -
                   200;
               final opacity = 0.03 + (index % 3) * 0.01;
 

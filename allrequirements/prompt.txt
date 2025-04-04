@@ -1,89 +1,286 @@
-Project Overview:
-Create a Flutter puzzle game app named "Puzzle Adventure" that dynamically fetches puzzles from a Firebase Realtime Database. The puzzles can be of varying grid sizes (e.g., 3×3, 4×3, 6×6). The app must display the puzzle, allow tile movements, show hints, and update the best time if the player beats the record. No login is required.
+# Number Quest - Development Guide & Prompts
 
+## Project Overview
+Create a Flutter puzzle game app named "Number Quest" that challenges players to arrange numbered tiles in the correct order using a unique dual empty space mechanic. The app fetches 525 puzzles from Firebase Realtime Database with grid sizes ranging from 2×2 to 7×7. Features include timer tracking, best time records, hints, difficulty levels, and responsive design.
 
-File Structure (Simplified):
+## Development Prompts
+
+### Initial Setup Prompt
+```
+Create a new Flutter project named 'number_quest' with the following dependencies in pubspec.yaml:
+- firebase_core: ^2.15.0
+- firebase_database: ^10.2.4
+- provider: ^6.0.5 (for state management)
+- shared_preferences: ^2.2.0 (for local storage)
+- flutter_animator: ^3.2.2 (for animations)
+Add Android and iOS platform configurations for Firebase integration.
+```
+
+### Firebase Structure Prompt
+```
+Set up a Firebase Realtime Database with the following structure:
+{
+  "numberquests": {
+    "puzzles": {
+      "puzzle1": {
+        "id": "puzzle1",
+        "title": "Level 1 - Easy",
+        "description": "Arrange numbers in a 3x3 grid.",
+        "grid": [[1, 2, 3], [4, 5, 6], [7, 0, 0]],
+        "solution": [[1, 2, 3], [4, 5, 6], [7, 0, 0]],
+        "best_time": 120,
+        "best_player_name": "",
+        "hints": ["Start from the top left corner."],
+        "difficulty": "easy"
+      },
+      // Add more puzzles with varying grid sizes and difficulties
+    }
+  }
+}
+Configure Firebase rules to allow read/write access.
+```
+
+### File Structure Implementation Prompt
+```
+Create the following directory structure for the Number Quest app:
 /lib
-  ├── main.dart                    // Entry point and Firebase initialization.
-  ├── screens
-  │     ├── home_screen.dart       // Lists available puzzles from Firebase.
-  │     └── puzzle_screen.dart     // Displays the selected puzzle with its grid.
-  ├── widgets
-  │     ├── puzzle_grid.dart       // Dynamically builds the grid layout based opuzzle size.
-  │     └── tile_widget.dart       // Represents individual puzzle tiles with tap/drag support.
-  └── models
-        └── puzzle.dart            // Puzzle model containing id, title, description, grid, solution, best_time, hints.
+  ├── main.dart                    // App entry point and Firebase initialization
+  ├── screens/
+  │     ├── splash_screen.dart     // Initial loading screen with app logo
+  │     ├── home_screen.dart       // Main menu with puzzle selection by difficulty
+  │     ├── puzzle_screen.dart     // Interactive puzzle gameplay screen
+  │     ├── settings_screen.dart   // App settings and preferences
+  │     └── stats_screen.dart      // Player statistics and achievements
+  ├── widgets/
+  │     ├── puzzle_grid.dart       // Dynamic grid generation for different sizes
+  │     ├── tile_widget.dart       // Individual puzzle tiles with move animation
+  │     ├── timer_widget.dart      // Game timer with formatting
+  │     ├── hint_widget.dart       // Expandable hint display
+  │     └── difficulty_filter.dart // Filter puzzles by difficulty level
+  ├── models/
+  │     ├── puzzle.dart            // Puzzle data model
+  │     ├── game_state.dart        // Current game state management
+  │     └── user_stats.dart        // Player statistics tracking
+  ├── services/
+  │     ├── firebase_service.dart  // Firebase data operations
+  │     ├── puzzle_solver.dart     // Solution verification algorithm
+  │     └── storage_service.dart   // Local storage operations
+  └── utils/
+        ├── constants.dart         // App-wide constants and theme data
+        ├── animations.dart        // Custom animation definitions
+        └── helpers.dart           // Helper functions and utilities
+```
 
-Frontend UI Components:
+### Models Implementation Prompt
+```
+Create the Puzzle model class with:
+- Properties for id, title, description, grid (2D array), solution, best_time, best_player_name, hints, and difficulty
+- Methods for checking if a move is valid given two empty spaces
+- Methods to verify if the current grid matches the solution
+- Factory constructor to parse from Firebase JSON data
 
-  - Home Screen (home_screen.dart):
-      Purpose: Retrieve and list puzzles from Firebase.
-      Components:
-        A list or grid view of puzzle cards.
-        Each card displays puzzle title, a brief description, and best time.
-        Tapping a puzzle navigates to the Puzzle Screen.
+Create the GameState model using Provider pattern to track:
+- Current puzzle state (2D array)
+- Timer value
+- Move count
+- Game completion status
+```
 
-  - Puzzle Screen (puzzle_screen.dart):
-      Purpose: Render the puzzle details and interactive grid.
-      Components:
-        Display puzzle title and description.
-        Show a dynamically generated grid using the PuzzleGrid widget.
-        Display hints (if available) below the grid.
-        A section to show current time and best time.
-        A “Submit” or “Complete” button that triggers validation of the solution.
+### Firebase Service Implementation Prompt
+```
+Implement a FirebaseService class with:
+- Method to fetch all puzzle data with optional filtering by difficulty
+- Method to fetch a single puzzle by id
+- Method to update the best time when a player beats the record
+- Error handling for network issues
+- Caching mechanism for offline play
+```
 
-  - PuzzleGrid Widget (puzzle_grid.dart):
-      Purpose: Build a grid layout that adapts to various sizes (e.g., 3×3, 4×3, 6×6).
-      Components:
-        Use a GridView or custom layout widget.
-        Dynamically calculate the number of columns based on the puzzle grid data from Firebase.
-        Populate the grid with TileWidget instances.
+### UI Screens Implementation Prompts
 
-  - Tile Widget (tile_widget.dart):
-      Purpose: Display individual puzzle pieces.
-      Features:
-        Support tap/drag functionality for moving tiles.
-        Visually update when the tile is moved.
+#### Home Screen Prompt
+```
+Create a home screen with:
+- App title and logo at the top
+- Difficulty selection tabs (Easy, Medium, Hard, Expert)
+- Grid view of puzzle cards displaying:
+  - Puzzle title
+  - Grid size
+  - Best time (if any)
+  - Visual indicator of completion status
+- Navigation to settings and stats screens
+- Loading indicator while fetching puzzles
+- Pull-to-refresh functionality
+Use a staggered animation for the puzzle cards appearance
+```
 
-  - Styling & Interaction:
-      Use simple animations for tile movement.
-      Incorporate loading indicators while data is being fetched.
-      Error messages for any Firebase connection issues.
+#### Puzzle Screen Prompt
+```
+Implement a puzzle screen with:
+- Header showing puzzle title and difficulty
+- Timer that starts automatically when the screen loads
+- Move counter
+- Dynamically sized grid based on puzzle dimensions
+- Tiles that can be moved only if adjacent to one of the two empty spaces
+- Hint button that expands to show available hints
+- "Reset" button to restart the current puzzle
+- Best time display
+- Game completion detection that:
+  - Stops the timer
+  - Shows a celebration animation
+  - Updates the best time if applicable
+  - Offers options to return to menu or try next puzzle
+```
 
+#### Puzzle Grid and Tile Implementation Prompt
+```
+Create a dynamic PuzzleGrid widget that:
+- Calculates appropriate tile sizes based on screen dimensions and grid size
+- Arranges tiles in a grid pattern matching the puzzle dimensions
+- Handles the rendering of the two empty spaces
 
-Backend Operations:
+Implement a TileWidget that:
+- Displays a number or image
+- Supports tap gestures for movement
+- Animates smoothly when moving to a new position
+- Has a distinctive visual style based on its position (correct/incorrect)
+- Implements haptic feedback when moved
+```
 
-  Fetching Data:
-    On the Home Screen, fetch the list of puzzles.
-    When a puzzle is selected, fetch the full puzzle details including grid size, hints, and best time.
+### Game Logic Implementation Prompt
+```
+Implement the core game logic that:
+- Tracks the positions of the two empty spaces
+- Determines which tiles are movable (adjacent to either empty space)
+- Validates moves before executing them
+- Updates the game state after each move
+- Checks for puzzle completion after each move by comparing with the solution
+- Calculates player performance metrics (time, moves)
+```
 
-  Dynamic Grid Handling:
-    The grid data (2D array) defines the grid dimensions. The PuzzleGrid widget calculates rows and columns based on the data.
+### Animation and Styling Prompt
+```
+Implement animations and styling:
+- Smooth sliding animations for tile movement using AnimatedPositioned
+- Celebration animation on puzzle completion
+- Subtle background patterns that vary by difficulty level
+- Color themes (light/dark) with user preference toggle
+- Responsive layout that adapts to different screen sizes and orientations
+- Accessibility considerations for color contrast and text size
+```
 
-  Updating Best Time:
-    After a puzzle is completed, compare the player's time with the stored best_time.
-    If the player's time is lower, update the best_time field in Firebase.
+### Testing Implementation Prompt
+```
+Create comprehensive tests:
+- Unit tests for the puzzle model and game logic
+- Widget tests for the UI components
+- Integration tests for Firebase connectivity
+- Performance tests for larger grid sizes
+```
 
-  Firebase Setup:
-    Use the firebase realtime database packages.
-    Initialize Firebase in main.dart.
-    Set up appropriate Firebase security rules to allow read access (and write access for updating best_time if needed) without user login. Consider anonymous authentication if security is a concern.
+## Complete Implementation Workflow
 
+1. **Setup Firebase Project**:
+   - Create a new project in Firebase Console
+   - Set up Realtime Database
+   - Import sample puzzle data
+   - Configure security rules
+   - Add Android and iOS apps
+   - Download and place configuration files
 
+2. **Initialize Flutter Project**:
+   - Create new project with Flutter CLI
+   - Add dependencies to pubspec.yaml
+   - Configure platform-specific files
 
-Additional Considerations:
+3. **Implement Core Models**:
+   - Create data models for puzzles and game state
+   - Implement game logic algorithms
 
-  Error Handling:
-    Provide feedback if the Firebase fetch fails. Include retry options or offline data caching.
+4. **Implement Firebase Services**:
+   - Create service for data fetching and updating
+   - Implement caching for offline functionality
 
-  Responsiveness:
-    Ensure the UI adapts to different screen sizes and orientations.
+5. **Build UI Components**:
+   - Create responsive layouts for all screens
+   - Implement dynamic grid rendering
+   - Create animated tile components
+   - Design and implement game controls
 
-  Extensibility:
-    The file structure and components should be modular, making it easier to add new features like different game modes or additional puzzle types in the future.
+6. **Add Game Mechanics**:
+   - Implement dual empty space movement logic
+   - Create timer and move counter
+   - Add solution verification
+   - Implement best time tracking
 
-  Testing:
-    Include basic unit tests for puzzle logic and widget tests for UI components.
+7. **Polish and Refine**:
+   - Add animations and transitions
+   - Implement themes and styling
+   - Add sound effects and haptic feedback
+   - Optimize performance
 
-  Documentation:
-    Comment your code to explain the functionality of each component, especially the dynamic grid generation and Firebase interactions.
+8. **Test and Debug**:
+   - Run comprehensive tests
+   - Fix any identified issues
+   - Test on multiple device sizes
+
+9. **Deploy**:
+   - Generate release builds
+   - Configure app signing
+   - Prepare for app store submission
+
+## Key Technical Challenges and Solutions
+
+### Dual Empty Space Movement
+The unique challenge is implementing the two-empty-space system. Unlike traditional sliding puzzles, tiles can move to either of two empty spaces, creating more strategic options.
+
+**Implementation approach**:
+```dart
+bool isMovable(int row, int col) {
+  // A tile is movable if it's adjacent to either empty space
+  for (var emptySpace in emptySpaces) {
+    if ((row == emptySpace.row && (col == emptySpace.col - 1 || col == emptySpace.col + 1)) ||
+        (col == emptySpace.col && (row == emptySpace.row - 1 || row == emptySpace.row + 1))) {
+      return true;
+    }
+  }
+  return false;
+}
+```
+
+### Dynamic Grid Sizing
+Supporting multiple grid sizes (2×2 to 7×7) requires flexible layout calculation.
+
+**Implementation approach**:
+```dart
+Widget buildGrid(BuildContext context, List<List<int>> grid) {
+  int rows = grid.length;
+  int cols = grid[0].length;
+  
+  // Calculate tile size based on available space
+  double availableWidth = MediaQuery.of(context).size.width - 40; // padding
+  double tileSize = availableWidth / cols;
+  
+  return Container(
+    width: tileSize * cols,
+    height: tileSize * rows,
+    child: Stack(
+      children: [
+        for (int r = 0; r < rows; r++)
+          for (int c = 0; c < cols; c++)
+            if (grid[r][c] != 0) // Skip empty spaces (0)
+              TileWidget(
+                value: grid[r][c],
+                size: tileSize,
+                row: r,
+                col: c,
+                isMovable: isMovable(r, c),
+                onTap: () => moveTile(r, c),
+              ),
+      ],
+    ),
+  );
+}
+```
+
+This comprehensive guide provides all necessary prompts and implementation details to recreate the Number Quest app with its unique dual empty space puzzle mechanics.
