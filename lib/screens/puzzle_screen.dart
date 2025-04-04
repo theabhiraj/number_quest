@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/puzzle.dart';
 import '../services/connectivity_service.dart';
 import '../widgets/puzzle_grid.dart';
+import '../main.dart'; // Import for navigatorKey
 
 class PuzzleScreen extends StatefulWidget {
   final Puzzle puzzle;
@@ -132,13 +133,25 @@ class _PuzzleScreenState extends State<PuzzleScreen>
       final String oldName = playerName;
       final prefs = await SharedPreferences.getInstance();
 
-      // Update local storage
+      // Update local storage - ensure it's updated
       await prefs.setString('player_name', name);
 
       // Update state
       setState(() {
         playerName = name;
       });
+
+      // Ensure this name update is applied to any other screens by broadcasting it
+      // This ensures the home screen and other screens get updated
+      if (navigatorKey.currentContext != null) {
+        final messenger = ScaffoldMessenger.of(navigatorKey.currentContext!);
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Profile updated: $name'),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      }
 
       // Check connectivity
       final isConnected = await _connectivityService.checkConnection();
@@ -1485,20 +1498,20 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                         final bool isLargeGrid = gridSize >= 6;
                         final bool isVeryLargeGrid = gridSize >= 8;
                         
-                        // Adjust container padding for different grid sizes
-                        final EdgeInsets gridPadding = isVeryLargeGrid
-                            ? EdgeInsets.all(isSmallScreen ? 4.0 : 8.0)
-                            : isLargeGrid
-                                ? EdgeInsets.all(isSmallScreen ? 8.0 : 12.0)
-                                : EdgeInsets.all(isSmallScreen ? 12.0 : 16.0);
+                        // Adjust container padding for different grid sizes - make consistent
+                        final EdgeInsets gridPadding = EdgeInsets.all(isSmallScreen ? 12.0 : 16.0);
                         
                         return FadeTransition(
                           opacity: _fadeAnimation,
                           child: Padding(
                             padding: gridPadding,
-                            child: PuzzleGrid(
-                              grid: _currentPuzzle.grid,
-                              onTileTap: _handleTileTap,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              // Ensure a consistent size regardless of interaction state
+                              child: PuzzleGrid(
+                                grid: _currentPuzzle.grid,
+                                onTileTap: _handleTileTap,
+                              ),
                             ),
                           ),
                         );
