@@ -27,10 +27,14 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isLoading = true;
   bool _isOffline = false;
   Map<int, bool> _unlockedLevels = {};
+  String _playerName = "Unknown";
   late AnimationController _animationController;
   late Animation<double> _staggeredAnimation;
   Timer? _connectivityCheckTimer;
   final ConnectivityService _connectivityService = ConnectivityService();
+  // Define customPrimary color
+  final Color customPrimary = const Color(0xFF5B4CFF);
+  final Color customSecondary = const Color(0xFF52C9DF);
 
   @override
   void initState() {
@@ -49,6 +53,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     _loadPuzzles();
     _loadUnlockedLevels();
+    _loadPlayerName();
 
     // Start periodic connectivity checks
     _connectivityCheckTimer = Timer.periodic(const Duration(seconds: 30),
@@ -362,6 +367,389 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  // Function to load the player's name from SharedPreferences
+  Future<void> _loadPlayerName() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        _playerName = prefs.getString('player_name') ?? "Unknown";
+      });
+    } catch (e) {
+      developer.log('Error loading player name: $e', name: 'HomeScreen');
+      setState(() {
+        _playerName = "Unknown";
+      });
+    }
+  }
+
+  // Function to save the player's name to SharedPreferences
+  Future<void> _savePlayerName(String name) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('player_name', name);
+
+      // Update the name in memory
+      setState(() {
+        _playerName = name;
+      });
+
+      // Update the player name on all records where this player has the best time
+      await _updatePlayerNameOnBestTimeRecords(name);
+    } catch (e) {
+      developer.log('Error saving player name: $e', name: 'HomeScreen');
+    }
+  }
+
+  // Update the player name on all puzzles where this player has the best time
+  Future<void> _updatePlayerNameOnBestTimeRecords(String newName) async {
+    try {
+      final String oldName = _playerName;
+
+      // Check connectivity before updating Firebase
+      final isConnected = await _connectivityService.checkConnection();
+      if (!isConnected) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to update records: No internet connection'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        return; // Don't attempt to update if offline
+      }
+
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(customPrimary),
+              ),
+              const SizedBox(width: 16),
+              const Text("Updating your records..."),
+            ],
+          ),
+        ),
+      );
+
+      int updatedRecordsCount = 0;
+      List<String> updatedPuzzleIds = [];
+
+      // First, get all user's personal best times
+      final prefs = await SharedPreferences.getInstance();
+      Map<String, double> userBestTimes = {};
+
+      // Collect all user's best times from local storage
+      prefs.getKeys().forEach((key) {
+        if (key.startsWith('user_best_time_')) {
+          final puzzleId = key.replaceFirst('user_best_time_', '');
+          userBestTimes[puzzleId] = prefs.getDouble(key) ?? double.infinity;
+        }
+      });
+
+      // First, directly check for Firebase records where bestPlayerName = oldName
+      // This handles cases where the player previously had records but may no longer
+      // match exactly due to floating point differences
+      for (final puzzle in _puzzles) {
+        try {
+          if (puzzle.bestPlayerName == oldName) {
+            // Old name matches - we need to update this record
+            final databaseRef = FirebaseDatabase.instance
+                .ref()
+                .child('numberquests/puzzles/${puzzle.id}');
+
+            await databaseRef.update({'best_player_name': newName});
+
+            // Create a new Puzzle object with updated name
+            final updatedPuzzle = Puzzle(
+              id: puzzle.id,
+              title: puzzle.title,
+              description: puzzle.description,
+              grid: puzzle.grid,
+              solution: puzzle.solution,
+              bestTime: puzzle.bestTime,
+              bestPlayerName: newName,
+              hints: puzzle.hints,
+            );
+
+            // Update in the list
+            final index = _puzzles.indexWhere((p) => p.id == puzzle.id);
+            if (index != -1 && mounted) {
+              setState(() {
+                _puzzles[index] = updatedPuzzle;
+              });
+            }
+
+            updatedRecordsCount++;
+            updatedPuzzleIds.add(puzzle.id);
+            continue; // Skip to the next puzzle since we already updated this one
+          }
+
+          // For puzzles where the name doesn't match directly, check times
+          final userBestTime = userBestTimes[puzzle.id];
+
+          if (userBestTime != null) {
+            // Convert to minutes for comparison with Firebase data
+            final userBestTimeMinutes = userBestTime / 60;
+
+            // Check if user has the best time (accounting for floating point precision issues)
+            if ((userBestTimeMinutes - puzzle.bestTime).abs() < 0.001) {
+              // If the best times match, this user likely had the record
+              // Update Firebase database with new player name
+              final databaseRef = FirebaseDatabase.instance
+                  .ref()
+                  .child('numberquests/puzzles/${puzzle.id}');
+
+              await databaseRef.update({'best_player_name': newName});
+
+              // Create a new Puzzle object with updated name
+              final updatedPuzzle = Puzzle(
+                id: puzzle.id,
+                title: puzzle.title,
+                description: puzzle.description,
+                grid: puzzle.grid,
+                solution: puzzle.solution,
+                bestTime: puzzle.bestTime,
+                bestPlayerName: newName,
+                hints: puzzle.hints,
+              );
+
+              // Update in the list
+              final index = _puzzles.indexWhere((p) => p.id == puzzle.id);
+              if (index != -1 && mounted) {
+                setState(() {
+                  _puzzles[index] = updatedPuzzle;
+                });
+              }
+
+              updatedRecordsCount++;
+              updatedPuzzleIds.add(puzzle.id);
+            }
+          }
+        } catch (e) {
+          developer.log('Error updating record for puzzle ${puzzle.id}: $e',
+              name: 'HomeScreen');
+        }
+      }
+
+      // Close loading dialog
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      // Save updated puzzles back to cache
+      await _savePuzzlesToCache();
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              updatedRecordsCount > 0
+                  ? 'Name updated on $updatedRecordsCount records!'
+                  : 'No records found with your previous name',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if there was an error
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      developer.log('Error updating player name on records: $e',
+          name: 'HomeScreen');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating records: ${e.toString()}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  // Function to show dialog for setting/editing the user's name
+  void _showUserNameDialog(BuildContext context) async {
+    final TextEditingController textController = TextEditingController(
+        text: _playerName != "Unknown" ? _playerName : "");
+
+    // Use a bottom sheet instead of dialog to better handle keyboard
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext dialogContext) {
+        return Padding(
+          // This is critical - it adjusts for the keyboard
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(dialogContext).viewInsets.bottom,
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle at the top for visual indication of bottom sheet
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Row(
+                  children: [
+                    Icon(
+                      Icons.person,
+                      color: customPrimary,
+                      size: 26,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Your Player Profile',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Name input field
+                Text(
+                  'Player Name (max 7 letters):',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: textController,
+                  maxLength: 7,
+                  autofocus: true, // Automatically show keyboard
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: customPrimary.withAlpha(179),
+                      ),
+                    ),
+                    hintText: "Enter your name",
+                    counterText: '',
+                    prefixIcon: Icon(Icons.edit, color: customPrimary),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Information about name being used for leaderboards
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.blue.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        color: Colors.blue,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Your name will be displayed on leaderboards when you achieve the best time.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue.shade800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(dialogContext).pop();
+                      },
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        final name = textController.text.trim();
+                        if (name.isNotEmpty) {
+                          _savePlayerName(name);
+                        }
+                        Navigator.of(dialogContext).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: customPrimary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: Text('Save'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // Mark the level as completed in user preferences
   Future<void> markLevelCompleted(int levelNumber) async {
     try {
@@ -421,10 +809,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _navigateToPuzzle(Puzzle puzzle) async {
-    // Define customPrimary and customSecondary here
-    const customPrimary = Color(0xFF5B4CFF);
-    const customSecondary = Color(0xFF52C9DF);
-
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -432,6 +816,7 @@ class _HomeScreenState extends State<HomeScreen>
           puzzle: puzzle,
           customPrimary: customPrimary,
           customSecondary: customSecondary,
+          playerName: _playerName,
           onLevelComplete: () {
             // Mark this level as completed in user preferences
             markLevelCompleted(_extractLevelNumber(puzzle.title));
@@ -462,8 +847,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    const customPrimary = Color(0xFF5B4CFF);
-    const customSecondary = Color(0xFF52C9DF);
 
     // Get screen size for responsive design
     final screenSize = MediaQuery.of(context).size;
@@ -500,6 +883,16 @@ class _HomeScreenState extends State<HomeScreen>
               pinned: true,
               elevation: 0,
               backgroundColor: customPrimary,
+              actions: [
+                // Profile button for user name
+                IconButton(
+                  icon: const Icon(Icons.person, color: Colors.white),
+                  tooltip: 'Set Player Name',
+                  onPressed: () {
+                    _showUserNameDialog(context);
+                  },
+                ),
+              ],
               flexibleSpace: FlexibleSpaceBar(
                 title: const Text(
                   'No. Quest',

@@ -14,6 +14,7 @@ class PuzzleScreen extends StatefulWidget {
   final Puzzle puzzle;
   final Color customPrimary;
   final Color customSecondary;
+  final String? playerName;
   final VoidCallback? onLevelComplete;
 
   const PuzzleScreen({
@@ -21,6 +22,7 @@ class PuzzleScreen extends StatefulWidget {
     required this.puzzle,
     required this.customPrimary,
     required this.customSecondary,
+    this.playerName,
     this.onLevelComplete,
   });
 
@@ -65,9 +67,19 @@ class _PuzzleScreenState extends State<PuzzleScreen>
 
     _animationController.forward();
 
-    // Load user's best time from local storage
+    // Load user's best time from local storage first
     _loadUserBestTime();
-    _loadPlayerName();
+
+    // Check if we need to fetch the latest puzzle data from Firebase
+    _checkForUpdatedPuzzleData();
+
+    // Use playerName from widget if provided, otherwise load from local storage
+    if (widget.playerName != null && widget.playerName!.isNotEmpty) {
+      playerName = widget.playerName!;
+      _isPlayerNameLoaded = true;
+    } else {
+      _loadPlayerName();
+    }
 
     // Check connectivity when screen opens
     _connectivityService.checkConnectionAndShowDialog();
@@ -115,11 +127,77 @@ class _PuzzleScreenState extends State<PuzzleScreen>
 
   Future<void> _savePlayerName(String name) async {
     try {
+      // Get the old name before updating
+      final String oldName = playerName;
       final prefs = await SharedPreferences.getInstance();
+
+      // Update local storage
       await prefs.setString('player_name', name);
+
+      // Update state
       setState(() {
         playerName = name;
       });
+
+      // Check connectivity
+      final isConnected = await _connectivityService.checkConnection();
+      if (!isConnected) {
+        return; // Skip Firebase update if offline
+      }
+
+      // First check: Current puzzle's best record
+      // If this puzzle's best player name matches old name, update it directly
+      if (_currentPuzzle.bestPlayerName == oldName) {
+        try {
+          // Update puzzle record for this puzzle
+          final databaseRef = FirebaseDatabase.instance
+              .ref()
+              .child('numberquests/puzzles/${_currentPuzzle.id}');
+
+          await databaseRef.update({'best_player_name': name});
+
+          // Update local puzzle state
+          setState(() {
+            _currentPuzzle = _currentPuzzle.copyWith(
+              bestPlayerName: name,
+            );
+          });
+
+          return; // Direct name match, no need to check times
+        } catch (e) {
+          debugPrint('Error updating puzzle best player name: $e');
+        }
+      }
+
+      // Second check: Check based on time
+      final userBestTime =
+          prefs.getDouble('user_best_time_${_currentPuzzle.id}');
+      if (userBestTime != null) {
+        // Convert to minutes for comparison with Firebase data
+        final userBestTimeMinutes = userBestTime / 60;
+
+        // Check if user holds the best time (allowing for small floating point differences)
+        if ((userBestTimeMinutes - _currentPuzzle.bestTime / 60).abs() <
+            0.001) {
+          try {
+            // Update best player name for this puzzle in Firebase
+            final databaseRef = FirebaseDatabase.instance
+                .ref()
+                .child('numberquests/puzzles/${_currentPuzzle.id}');
+
+            await databaseRef.update({'best_player_name': name});
+
+            // Update local puzzle state
+            setState(() {
+              _currentPuzzle = _currentPuzzle.copyWith(
+                bestPlayerName: name,
+              );
+            });
+          } catch (e) {
+            debugPrint('Error updating puzzle best player name: $e');
+          }
+        }
+      }
     } catch (e) {
       debugPrint('Error saving player name: $e');
     }
@@ -168,9 +246,20 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   }
 
   void _resetPuzzle() {
-    // Reset the puzzle state
+    // Reset the puzzle state while preserving the best times
     setState(() {
-      _currentPuzzle = widget.puzzle.copyWith();
+      // Store current best times before reset
+      final currentBestTime = _currentPuzzle.bestTime;
+      final currentBestPlayerName = _currentPuzzle.bestPlayerName;
+
+      // Create a fresh copy of the puzzle with original grid but preserved best times
+      _currentPuzzle = widget.puzzle.copyWith(
+        grid: widget.puzzle.grid,
+        bestTime: currentBestTime, // Preserve current best time
+        bestPlayerName:
+            currentBestPlayerName, // Preserve current best player name
+      );
+
       _elapsedSeconds = 0;
       _elapsedMilliseconds = 0;
       _isPlaying = false;
@@ -613,6 +702,135 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                 ],
                               ),
 
+                              // Best time comparison section
+                              Container(
+                                margin: const EdgeInsets.only(top: 16),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'BEST TIMES',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 1.0,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+
+                                    // User's best time
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.person,
+                                              color: widget.customPrimary,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'YOUR BEST:',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                          _userBestTime == double.infinity
+                                              ? '--:--:--'
+                                              : _formatTime(
+                                                  _userBestTime.floor(),
+                                                  _userBestTime -
+                                                      _userBestTime.floor()),
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: widget.customPrimary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    const SizedBox(height: 8),
+                                    const Divider(),
+                                    const SizedBox(height: 8),
+
+                                    // Level's best time
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.emoji_events,
+                                              color: widget.customSecondary,
+                                              size: 20,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              'LEVEL BEST:',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.grey[700],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              _currentPuzzle.bestTime ==
+                                                      double.infinity
+                                                  ? '--:--:--'
+                                                  : _formatTime(
+                                                      _currentPuzzle.bestTime
+                                                          .floor(),
+                                                      _currentPuzzle.bestTime -
+                                                          _currentPuzzle
+                                                              .bestTime
+                                                              .floor()),
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: widget.customSecondary,
+                                              ),
+                                            ),
+                                            if (_currentPuzzle.bestPlayerName
+                                                    .isNotEmpty &&
+                                                _currentPuzzle.bestPlayerName !=
+                                                    "Unknown" &&
+                                                _currentPuzzle.bestTime !=
+                                                    double.infinity)
+                                              Text(
+                                                ' (${_currentPuzzle.bestPlayerName})',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontStyle: FontStyle.italic,
+                                                  color: widget.customSecondary,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+
                               // Next Level button
                               Padding(
                                 padding: const EdgeInsets.only(top: 12),
@@ -700,7 +918,11 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         isUserBestTime = true;
       }
 
-      if (_currentTime < _currentPuzzle.bestTime) {
+      // Check if this is a new level record
+      bool isLevelRecord = _currentTime < _currentPuzzle.bestTime;
+
+      // If this is a level record, update Firebase
+      if (isLevelRecord) {
         // Only ask for player name if we don't have one yet
         if (mounted && (playerName == "Unknown" || !_isPlayerNameLoaded)) {
           TextEditingController textController =
@@ -722,41 +944,43 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                     const Text('New Record!'),
                   ],
                 ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Congratulations! You set a new record time.',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Enter your name (max 7 letters):',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Congratulations! You set a new record time.',
+                        style: TextStyle(fontSize: 16),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: textController,
-                      autofocus: true,
-                      maxLength: 7,
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: widget.customPrimary.withAlpha(179),
-                          ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Enter your name (max 7 letters):',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
                         ),
-                        hintText: "Your name",
-                        counterText: '',
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: textController,
+                        autofocus: true,
+                        maxLength: 7,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: Colors.grey[100],
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: widget.customPrimary.withAlpha(179),
+                            ),
+                          ),
+                          hintText: "Your name",
+                          counterText: '',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 actions: [
                   TextButton(
@@ -780,6 +1004,125 @@ class _PuzzleScreenState extends State<PuzzleScreen>
               _savePlayerName(playerName); // Save the name for future use
             }
           });
+        } else {
+          // Ask if the user wants to use their current name or set a new one
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              final TextEditingController textController =
+                  TextEditingController(text: playerName);
+              bool useCurrentName = true;
+
+              return StatefulBuilder(builder: (context, setState) {
+                return AlertDialog(
+                  title: Wrap(
+                    spacing: 8,
+                    children: [
+                      Icon(
+                        Icons.emoji_events,
+                        color: widget.customSecondary,
+                        size: 28,
+                      ),
+                      const Text('New Record!'),
+                    ],
+                  ),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Congratulations! You set a new record time of ${_formatTime(_currentTime.floor(), _currentTime - _currentTime.floor())}',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Option to use current name
+                        RadioListTile<bool>(
+                          title: Text(
+                            'Use current name: $playerName',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          value: true,
+                          groupValue: useCurrentName,
+                          activeColor: widget.customSecondary,
+                          onChanged: (value) {
+                            setState(() {
+                              useCurrentName = value!;
+                            });
+                          },
+                        ),
+
+                        // Option to set a new name
+                        RadioListTile<bool>(
+                          title: Text(
+                            'Set a new name',
+                            style: TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          value: false,
+                          groupValue: useCurrentName,
+                          activeColor: widget.customSecondary,
+                          onChanged: (value) {
+                            setState(() {
+                              useCurrentName = value!;
+                            });
+                          },
+                        ),
+
+                        // Name input field - shown only if "Set a new name" is selected
+                        if (!useCurrentName)
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(top: 8.0, bottom: 8.0),
+                            child: TextField(
+                              controller: textController,
+                              maxLength: 7,
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: Colors.grey[100],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: widget.customPrimary.withAlpha(179),
+                                  ),
+                                ),
+                                hintText: "Enter new name",
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        final String nameToUse = useCurrentName
+                            ? playerName
+                            : textController.text.trim();
+
+                        if (!useCurrentName &&
+                            nameToUse.isNotEmpty &&
+                            nameToUse != playerName) {
+                          playerName = nameToUse;
+                          _savePlayerName(nameToUse); // Save the new name
+                        }
+
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(
+                        'Save',
+                        style: TextStyle(color: widget.customPrimary),
+                      ),
+                    ),
+                  ],
+                  actionsPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                );
+              });
+            },
+          );
         }
 
         try {
@@ -791,7 +1134,16 @@ class _PuzzleScreenState extends State<PuzzleScreen>
             return;
           }
 
-          // Update Firebase database with new best time
+          // First, update the local puzzle state with the new best time
+          // This ensures that if user hits "Play Again", the correct best time is shown
+          setState(() {
+            _currentPuzzle = _currentPuzzle.copyWith(
+              bestTime: _currentTime,
+              bestPlayerName: playerName,
+            );
+          });
+
+          // Now update Firebase database with new best time
           final databaseRef = FirebaseDatabase.instance
               .ref()
               .child('numberquests/puzzles/${_currentPuzzle.id}');
@@ -802,13 +1154,10 @@ class _PuzzleScreenState extends State<PuzzleScreen>
           await databaseRef.update(
               {'best_time': minutesOnly, 'best_player_name': playerName});
 
-          if (mounted) {
-            setState(() {
-              _currentPuzzle = _currentPuzzle.copyWith(
-                bestTime: _currentTime, // Keep the full time in local model
-                bestPlayerName: playerName,
-              );
-            });
+          // Make sure user's best time matches global best time when they set the record
+          if (_userBestTime > _currentTime) {
+            _userBestTime = _currentTime;
+            await _saveUserBestTime(_currentTime);
           }
         } catch (e) {
           // Just log the error, don't interrupt user experience with error messages
@@ -941,6 +1290,43 @@ class _PuzzleScreenState extends State<PuzzleScreen>
         ],
       ),
     );
+  }
+
+  // Check if there are updated puzzle details in Firebase
+  Future<void> _checkForUpdatedPuzzleData() async {
+    try {
+      // Check connectivity before trying to fetch from Firebase
+      final isConnected = await _connectivityService.checkConnection();
+      if (!isConnected) {
+        return; // Skip Firebase check if offline
+      }
+
+      // Try to fetch the latest puzzle data from Firebase
+      final databaseRef = FirebaseDatabase.instance
+          .ref()
+          .child('numberquests/puzzles/${_currentPuzzle.id}');
+
+      final snapshot = await databaseRef.get();
+      if (snapshot.exists) {
+        final puzzleData = snapshot.value as Map<dynamic, dynamic>;
+        final bestTimeMinutes = (puzzleData['best_time'] as num).toDouble();
+        final bestTime =
+            bestTimeMinutes * 60; // Convert minutes to seconds for local use
+        final bestPlayerName = puzzleData['best_player_name'] as String;
+
+        // Update the puzzle if the Firebase data has a better time
+        if (bestTime < _currentPuzzle.bestTime) {
+          setState(() {
+            _currentPuzzle = _currentPuzzle.copyWith(
+              bestTime: bestTime,
+              bestPlayerName: bestPlayerName,
+            );
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching updated puzzle data: $e');
+    }
   }
 
   @override

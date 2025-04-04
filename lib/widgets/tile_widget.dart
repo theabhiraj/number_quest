@@ -94,26 +94,28 @@ class _TileWidgetState extends State<TileWidget>
     // Check if value is triple-digit for additional adjustments
     final bool isTripleDigit = widget.value >= 100;
 
-    // Adjust font size based on number of digits and device type
+    // More responsive font size adjustments based on tile size and digits
     final double fontSize = isTripleDigit
-        ? (widget.isTablet ? widget.size * 0.38 : widget.size * 0.34)
+        ? (widget.isTablet ? widget.size * 0.35 : widget.size * 0.32)
         : isDoubleDigit
-            ? (widget.isTablet ? widget.size * 0.42 : widget.size * 0.38)
-            : (widget.isTablet ? widget.size * 0.48 : widget.size * 0.44);
+            ? (widget.isTablet ? widget.size * 0.4 : widget.size * 0.36)
+            : (widget.isTablet ? widget.size * 0.46 : widget.size * 0.42);
 
-    // Adjust corner indicator visibility based on size
-    final bool showCornerIndicator = widget.size > 40 && isMovableTile;
+    // Adjust corner indicator visibility based on size - hide on very small tiles
+    final bool showCornerIndicator = widget.size > 35 && isMovableTile;
 
-    // Scale direction indicators based on tile size
+    // Scale direction indicators based on tile size - smaller for smaller tiles
     final double directionIndicatorSize = widget.isTablet
-        ? (widget.size > 70 ? 22 : 18)
-        : (widget.size > 50 ? 18 : 14);
+        ? (widget.size > 65 ? 20 : 16)
+        : (widget.size > 45 ? 16 : 12);
 
-    // Determine border radius: use provided value, or calculated based on size and device
-    final double borderRadius = widget.borderRadius ??
-        (widget.isTablet
-            ? (widget.size > 70 ? 24 : 20)
-            : (widget.size > 60 ? 20 : (widget.size > 40 ? 16 : 12)));
+    // More responsive border radius calculation
+    final double calculatedBorderRadius = widget.size > 65
+        ? 20
+        : (widget.size > 50 ? 16 : (widget.size > 35 ? 12 : 8));
+
+    // Determine border radius: use provided value, or calculated based on size
+    final double borderRadius = widget.borderRadius ?? calculatedBorderRadius;
 
     // Create gradient colors for the tile
     final primaryColor = _getTileColor();
@@ -121,6 +123,9 @@ class _TileWidgetState extends State<TileWidget>
         .withLightness(
             (HSLColor.fromColor(primaryColor).lightness - 0.1).clamp(0.0, 1.0))
         .toColor();
+
+    // Adjust shadow and highlight based on size
+    final bool useSimplifiedShadow = widget.size < 45;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -172,26 +177,36 @@ class _TileWidgetState extends State<TileWidget>
               color: isMovableTile ? null : _getTileColor(),
               borderRadius: BorderRadius.circular(borderRadius),
               boxShadow: isMovableTile
-                  ? [
-                      // Outer shadow
-                      BoxShadow(
-                        color: primaryColor.withOpacity(
-                            widget.isSelected || _isHovered ? 0.5 : 0.3),
-                        blurRadius:
-                            widget.isSelected ? 16 : (_isHovered ? 10 : 6),
-                        spreadRadius:
-                            widget.isSelected ? 2 : (_isHovered ? 1 : 0),
-                        offset: Offset(
-                            0, widget.isSelected ? 6 : (_isHovered ? 4 : 3)),
-                      ),
-                      // Inner highlight for 3D effect
-                      BoxShadow(
-                        color: Colors.white.withOpacity(0.5),
-                        blurRadius: 3,
-                        spreadRadius: -2,
-                        offset: const Offset(-1, -1),
-                      ),
-                    ]
+                  ? (useSimplifiedShadow
+                      ? [
+                          BoxShadow(
+                            color: primaryColor
+                                .withOpacity(widget.isSelected ? 0.4 : 0.2),
+                            blurRadius: widget.isSelected ? 8 : 4,
+                            spreadRadius: 0,
+                            offset: const Offset(0, 2),
+                          )
+                        ]
+                      : [
+                          // Outer shadow
+                          BoxShadow(
+                            color: primaryColor.withOpacity(
+                                widget.isSelected || _isHovered ? 0.5 : 0.3),
+                            blurRadius:
+                                widget.isSelected ? 16 : (_isHovered ? 10 : 6),
+                            spreadRadius:
+                                widget.isSelected ? 2 : (_isHovered ? 1 : 0),
+                            offset: Offset(0,
+                                widget.isSelected ? 6 : (_isHovered ? 4 : 3)),
+                          ),
+                          // Inner highlight for 3D effect
+                          BoxShadow(
+                            color: Colors.white.withOpacity(0.5),
+                            blurRadius: 3,
+                            spreadRadius: -2,
+                            offset: const Offset(-1, -1),
+                          ),
+                        ])
                   : null,
               border: !isMovableTile
                   ? Border.all(color: Colors.grey[400]!, width: 1)

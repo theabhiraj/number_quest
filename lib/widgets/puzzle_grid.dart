@@ -298,20 +298,42 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
     final isMediumScreen = maxDimension >= 360 && maxDimension < 600;
     final isTablet = maxDimension >= 600;
 
-    // Adjust tile size based on screen size and grid size
+    // Improved tile size calculation logic for better responsiveness with larger grids
     final tileSize = isTablet
-        ? (maxDimension * 0.8) / gridSize
+        ? (maxDimension * 0.75) /
+            math.max(gridSize, 3) // Reduce max size percentage for tablets
         : (isMediumScreen
-            ? (maxDimension * 0.85) / gridSize
-            : (maxDimension * 0.9) / gridSize);
+            ? (maxDimension * 0.8) /
+                math.max(gridSize, 3) // Reduce for medium screens
+            : (maxDimension * 0.85) /
+                math.max(gridSize, 3)); // Reduce for small screens
 
-    // Apply min/max constraints
+    // More aggressive constraints for larger grids
+    final double maxTileSize = isTablet
+        ? (gridSize > 3
+            ? 80.0
+            : 100.0) // Smaller max tile size for 4+ column grids on tablets
+        : (isMediumScreen
+            ? (gridSize > 3
+                ? 65.0
+                : 85.0) // Smaller for 4+ column grids on medium screens
+            : (gridSize > 3
+                ? 55.0
+                : 70.0)); // Smaller for 4+ column grids on small screens
+
+    // Apply min/max constraints with adjustments for larger grids
     final adjustedTileSize = math.max(
-        isTablet ? 60.0 : (isMediumScreen ? 50.0 : 40.0),
-        math.min(isTablet ? 100.0 : (isMediumScreen ? 85.0 : 70.0), tileSize));
+        isTablet
+            ? 50.0
+            : (isMediumScreen ? 40.0 : 35.0), // Smaller minimum sizes
+        math.min(maxTileSize, tileSize));
 
-    // Adjust padding based on screen size
-    final tilePadding = isTablet ? 6.0 : (isMediumScreen ? 4.0 : 2.0);
+    // Reduce padding for larger grids
+    final tilePadding = isTablet
+        ? (gridSize > 3 ? 4.0 : 6.0)
+        : (isMediumScreen
+            ? (gridSize > 3 ? 2.0 : 4.0)
+            : (gridSize > 3 ? 1.0 : 2.0));
 
     // Get theme for colors
     final theme = Theme.of(context);
@@ -324,28 +346,34 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
           final availableHeight = constraints.maxHeight;
 
           // Choose a square-like layout that fits within the constraints
+          // Add adjustment factor for larger grids to prevent overflow
+          final adaptiveFactor = gridSize > 3 ? 0.95 : 0.98;
           final adaptiveTileSize = math.min(
-              (availableWidth - (gridSize * tilePadding * 2)) / gridSize,
-              (availableHeight - (widget.grid.length * tilePadding * 2)) /
+              (availableWidth * adaptiveFactor - (gridSize * tilePadding * 2)) /
+                  gridSize,
+              (availableHeight * adaptiveFactor -
+                      (widget.grid.length * tilePadding * 2)) /
                   widget.grid.length);
 
           // Use adjusted tile size but ensure it fits within the layout
           final finalTileSize = math.min(adjustedTileSize, adaptiveTileSize);
 
           // Calculate the container size to fit the grid
-          // Ensure we have some additional padding to prevent overflow
+          // Further reduce margins for larger grids
+          final containerWidthFactor = gridSize > 3 ? 0.9 : 0.95;
           final containerWidth = math.min(
-              availableWidth * 0.95, // Add some margin
+              availableWidth * containerWidthFactor,
               (finalTileSize + (tilePadding * 2)) * gridSize +
                   (tilePadding * 2) +
-                  (isTablet ? 20 : 10) // Add extra space
+                  (isTablet ? 16 : 8) // Reduced extra space
               );
 
+          final containerHeightFactor = gridSize > 3 ? 0.9 : 0.95;
           final containerHeight = math.min(
-              availableHeight * 0.95, // Add some margin
+              availableHeight * containerHeightFactor,
               (finalTileSize + (tilePadding * 2)) * widget.grid.length +
                   (tilePadding * 2) +
-                  (isTablet ? 20 : 10) // Add extra space
+                  (isTablet ? 16 : 8) // Reduced extra space
               );
 
           return GestureDetector(
@@ -373,361 +401,371 @@ class _PuzzleGridState extends State<PuzzleGrid> with TickerProviderStateMixin {
                 });
               }
             },
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: availableWidth,
-                maxHeight: availableHeight,
-              ),
-              width: containerWidth,
-              height: containerHeight,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.primary.withOpacity(0.15),
-                    blurRadius: 25,
-                    spreadRadius: 8,
-                    offset: const Offset(0, 12),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                border: Border.all(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  width: 2,
+            child: Center(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: containerWidth,
+                  maxHeight: containerHeight,
                 ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              padding: EdgeInsets.all(tilePadding + 2),
-              child: Stack(
-                children: [
-                  // Background grid pattern
-                  Positioned.fill(
-                    child: Opacity(
-                      opacity: 0.05,
-                      child: CustomPaint(
-                        painter: GridPatternPainter(
-                          gridSize: gridSize,
-                          color: theme.colorScheme.primary,
+                width: containerWidth,
+                height: containerHeight,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(
+                      isTablet ? 28 : (gridSize > 3 ? 20 : 24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.15),
+                      blurRadius: 25,
+                      spreadRadius: 8,
+                      offset: const Offset(0, 12),
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    width: 2,
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                padding: EdgeInsets.all(
+                    gridSize > 3 ? tilePadding : tilePadding + 2),
+                child: Stack(
+                  children: [
+                    // Background grid pattern
+                    Positioned.fill(
+                      child: Opacity(
+                        opacity: 0.05,
+                        child: CustomPaint(
+                          painter: GridPatternPainter(
+                            gridSize: gridSize,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: widget.grid.asMap().entries.map((rowEntry) {
-                        final rowIndex = rowEntry.key;
-                        final row = rowEntry.value;
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: widget.grid.asMap().entries.map((rowEntry) {
+                          final rowIndex = rowEntry.key;
+                          final row = rowEntry.value;
 
-                        // Get max columns across all rows for filling in missing tiles
-                        int maxColsCount = 0;
-                        for (var r in widget.grid) {
-                          if (r.length > maxColsCount) maxColsCount = r.length;
-                        }
+                          // Get max columns across all rows for filling in missing tiles
+                          int maxColsCount = 0;
+                          for (var r in widget.grid) {
+                            if (r.length > maxColsCount)
+                              maxColsCount = r.length;
+                          }
 
-                        return Flexible(
-                          fit: FlexFit.loose,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Generate the actual tiles from the grid
-                              ...row.asMap().entries.map((colEntry) {
-                                final colIndex = colEntry.key;
-                                final value = colEntry.value;
+                          return Flexible(
+                            fit: FlexFit.loose,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Generate the actual tiles from the grid
+                                ...row.asMap().entries.map((colEntry) {
+                                  final colIndex = colEntry.key;
+                                  final value = colEntry.value;
 
-                                bool isSelected = _selectedRow == rowIndex &&
-                                    _selectedCol == colIndex;
-                                bool isMovable =
-                                    _getMovableDirections(rowIndex, colIndex)
-                                        .isNotEmpty;
-                                Map<String, List<int>> adjacentEmptyPos =
-                                    isMovable
-                                        ? _getAdjacentEmptyPositions(
-                                            rowIndex, colIndex)
-                                        : {};
+                                  bool isSelected = _selectedRow == rowIndex &&
+                                      _selectedCol == colIndex;
+                                  bool isMovable =
+                                      _getMovableDirections(rowIndex, colIndex)
+                                          .isNotEmpty;
+                                  Map<String, List<int>> adjacentEmptyPos =
+                                      isMovable
+                                          ? _getAdjacentEmptyPositions(
+                                              rowIndex, colIndex)
+                                          : {};
 
-                                // Get adjacent empty positions for the selected tile
-                                Map<String, List<int>>
-                                    selectedTileAdjacentEmptyPositions = {};
-                                if (_selectedRow != null &&
-                                    _selectedCol != null) {
-                                  selectedTileAdjacentEmptyPositions =
-                                      _getAdjacentEmptyPositions(
-                                          _selectedRow!, _selectedCol!);
-                                }
+                                  // Get adjacent empty positions for the selected tile
+                                  Map<String, List<int>>
+                                      selectedTileAdjacentEmptyPositions = {};
+                                  if (_selectedRow != null &&
+                                      _selectedCol != null) {
+                                    selectedTileAdjacentEmptyPositions =
+                                        _getAdjacentEmptyPositions(
+                                            _selectedRow!, _selectedCol!);
+                                  }
 
-                                // Check if this empty cell is adjacent to the selected tile
-                                String? directionFromSelected;
-                                if (value == 0 &&
-                                    _selectedRow != null &&
-                                    _selectedCol != null) {
-                                  for (final entry
-                                      in selectedTileAdjacentEmptyPositions
-                                          .entries) {
-                                    final List<int> pos = entry.value;
-                                    if (pos[0] == rowIndex &&
-                                        pos[1] == colIndex) {
-                                      directionFromSelected = entry.key;
-                                      break;
+                                  // Check if this empty cell is adjacent to the selected tile
+                                  String? directionFromSelected;
+                                  if (value == 0 &&
+                                      _selectedRow != null &&
+                                      _selectedCol != null) {
+                                    for (final entry
+                                        in selectedTileAdjacentEmptyPositions
+                                            .entries) {
+                                      final List<int> pos = entry.value;
+                                      if (pos[0] == rowIndex &&
+                                          pos[1] == colIndex) {
+                                        directionFromSelected = entry.key;
+                                        break;
+                                      }
                                     }
                                   }
-                                }
 
-                                final bool isAdjacentEmpty =
-                                    directionFromSelected != null;
+                                  final bool isAdjacentEmpty =
+                                      directionFromSelected != null;
 
-                                if (value == 0) {
-                                  // Empty space - with visual indicator when adjacent to selected tile or rock texture
+                                  if (value == 0) {
+                                    // Empty space - with visual indicator when adjacent to selected tile or rock texture
+                                    return Container(
+                                      width: finalTileSize,
+                                      height: finalTileSize,
+                                      margin: EdgeInsets.all(tilePadding),
+                                      child: isAdjacentEmpty
+                                          ? Container(
+                                              decoration: BoxDecoration(
+                                                color: theme.colorScheme.primary
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        isTablet ? 16 : 12),
+                                                border: Border.all(
+                                                  color: theme
+                                                      .colorScheme.primary
+                                                      .withOpacity(0.3),
+                                                  width: 2,
+                                                  style: BorderStyle.solid,
+                                                ),
+                                              ),
+                                              child: Material(
+                                                color: Colors.transparent,
+                                                child: InkWell(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          isTablet ? 14 : 10),
+                                                  splashColor: theme
+                                                      .colorScheme.primary
+                                                      .withOpacity(0.3),
+                                                  onTap: () {
+                                                    if (directionFromSelected !=
+                                                        null) {
+                                                      _handleEmptyTileTap(
+                                                          rowIndex,
+                                                          colIndex,
+                                                          directionFromSelected);
+                                                    }
+                                                  },
+                                                  child: Center(
+                                                    child: Icon(
+                                                      _getDirectionIcon(
+                                                          directionFromSelected),
+                                                      color: theme
+                                                          .colorScheme.primary
+                                                          .withOpacity(0.6),
+                                                      size: finalTileSize / 2.5,
+                                                      shadows: [
+                                                        Shadow(
+                                                          color: Colors.black
+                                                              .withOpacity(0.2),
+                                                          blurRadius: 3,
+                                                          offset: const Offset(
+                                                              0, 1),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
+                                              decoration: BoxDecoration(
+                                                color: theme
+                                                    .colorScheme.surfaceVariant,
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        isTablet ? 16 : 12),
+                                                border: Border.all(
+                                                  color: theme
+                                                      .colorScheme.outline
+                                                      .withOpacity(0.3),
+                                                  width: 1.0,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.1),
+                                                    blurRadius: 2,
+                                                    spreadRadius: 0,
+                                                    offset: const Offset(0, 1),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                    );
+                                  } else {
+                                    // Regular tile - with improved transitions and animations
+                                    return AnimatedContainer(
+                                      duration:
+                                          const Duration(milliseconds: 250),
+                                      curve: Curves.easeOutCubic,
+                                      width: finalTileSize,
+                                      height: finalTileSize,
+                                      margin: EdgeInsets.all(tilePadding),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(
+                                            isTablet ? 16 : 12),
+                                        boxShadow: [
+                                          if (isSelected)
+                                            BoxShadow(
+                                              color:
+                                                  Colors.black.withOpacity(0.2),
+                                              blurRadius: 8,
+                                              spreadRadius: 1,
+                                              offset: const Offset(0, 3),
+                                            ),
+                                        ],
+                                      ),
+                                      child: AnimatedBuilder(
+                                        animation: _selectionAnimController,
+                                        builder: (context, child) {
+                                          return Transform.scale(
+                                            scale: isSelected
+                                                ? _pulseAnimation.value
+                                                : 1.0,
+                                            child: child,
+                                          );
+                                        },
+                                        child: GestureDetector(
+                                          onTap: () => _handleTileTap(
+                                              rowIndex, colIndex),
+                                          onPanStart: (details) =>
+                                              _handleDragStart(
+                                                  rowIndex, colIndex, details),
+                                          onPanUpdate: (details) {
+                                            // If this is the current selected tile, use it for updates
+                                            if (_selectedRow == rowIndex &&
+                                                _selectedCol == colIndex) {
+                                              _handleDragUpdate(
+                                                  rowIndex,
+                                                  colIndex,
+                                                  details,
+                                                  adjacentEmptyPos);
+                                            } else if (_selectedRow != null &&
+                                                _selectedCol != null) {
+                                              // Otherwise, use the currently selected tile for updates
+                                              // This allows dragging to continue even when finger moves over different tiles
+                                              _handleDragUpdate(
+                                                  _selectedRow!,
+                                                  _selectedCol!,
+                                                  details,
+                                                  adjacentEmptyPos);
+                                            }
+                                          },
+                                          onPanEnd: (details) => _handleDragEnd(
+                                              rowIndex, colIndex, details),
+                                          child: TileWidget(
+                                            value: value,
+                                            isMovable: isMovable,
+                                            isSelected: isSelected,
+                                            isTablet: isTablet,
+                                            borderRadius: isTablet ? 16 : 12,
+                                            movableDirections:
+                                                _getMovableDirections(
+                                                    rowIndex, colIndex),
+                                            onTap: () => _handleTileTap(
+                                                rowIndex, colIndex),
+                                            onDirectionalTap: (direction) {
+                                              if (adjacentEmptyPos
+                                                  .containsKey(direction)) {
+                                                widget.onTileTap(
+                                                    rowIndex, colIndex,
+                                                    direction: direction);
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }),
+
+                                // Add rock placeholders for missing columns to make grid square
+                                ...List.generate(maxColsCount - row.length,
+                                    (index) {
                                   return Container(
                                     width: finalTileSize,
                                     height: finalTileSize,
                                     margin: EdgeInsets.all(tilePadding),
-                                    child: isAdjacentEmpty
-                                        ? Container(
-                                            decoration: BoxDecoration(
-                                              color: theme.colorScheme.primary
-                                                  .withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      isTablet ? 16 : 12),
-                                              border: Border.all(
-                                                color: theme.colorScheme.primary
-                                                    .withOpacity(0.3),
-                                                width: 2,
-                                                style: BorderStyle.solid,
-                                              ),
-                                            ),
-                                            child: Material(
-                                              color: Colors.transparent,
-                                              child: InkWell(
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                        isTablet ? 14 : 10),
-                                                splashColor: theme
-                                                    .colorScheme.primary
-                                                    .withOpacity(0.3),
-                                                onTap: () {
-                                                  if (directionFromSelected !=
-                                                      null) {
-                                                    _handleEmptyTileTap(
-                                                        rowIndex,
-                                                        colIndex,
-                                                        directionFromSelected);
-                                                  }
-                                                },
-                                                child: Center(
-                                                  child: Icon(
-                                                    _getDirectionIcon(
-                                                        directionFromSelected),
-                                                    color: theme
-                                                        .colorScheme.primary
-                                                        .withOpacity(0.6),
-                                                    size: finalTileSize / 2.5,
-                                                    shadows: [
-                                                      Shadow(
-                                                        color: Colors.black
-                                                            .withOpacity(0.2),
-                                                        blurRadius: 3,
-                                                        offset:
-                                                            const Offset(0, 1),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          )
-                                        : Container(
-                                            decoration: BoxDecoration(
-                                              color: theme
-                                                  .colorScheme.surfaceVariant,
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      isTablet ? 16 : 12),
-                                              border: Border.all(
-                                                color: theme.colorScheme.outline
-                                                    .withOpacity(0.3),
-                                                width: 1.0,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.1),
-                                                  blurRadius: 2,
-                                                  spreadRadius: 0,
-                                                  offset: const Offset(0, 1),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                  );
-                                } else {
-                                  // Regular tile - with improved transitions and animations
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    curve: Curves.easeOutCubic,
-                                    width: finalTileSize,
-                                    height: finalTileSize,
-                                    margin: EdgeInsets.all(tilePadding),
                                     decoration: BoxDecoration(
+                                      color: Colors.grey[800],
                                       borderRadius: BorderRadius.circular(
                                           isTablet ? 16 : 12),
+                                      border: Border.all(
+                                        color: Colors.grey[900]!,
+                                        width: 1.5,
+                                      ),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Colors.grey[700]!,
+                                          Colors.grey[900]!,
+                                        ],
+                                      ),
                                       boxShadow: [
-                                        if (isSelected)
-                                          BoxShadow(
-                                            color:
-                                                Colors.black.withOpacity(0.2),
-                                            blurRadius: 8,
-                                            spreadRadius: 1,
-                                            offset: const Offset(0, 3),
-                                          ),
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.3),
+                                          blurRadius: 3,
+                                          spreadRadius: 0,
+                                          offset: const Offset(0, 2),
+                                        ),
                                       ],
                                     ),
-                                    child: AnimatedBuilder(
-                                      animation: _selectionAnimController,
-                                      builder: (context, child) {
-                                        return Transform.scale(
-                                          scale: isSelected
-                                              ? _pulseAnimation.value
-                                              : 1.0,
-                                          child: child,
-                                        );
-                                      },
-                                      child: GestureDetector(
-                                        onTap: () =>
-                                            _handleTileTap(rowIndex, colIndex),
-                                        onPanStart: (details) =>
-                                            _handleDragStart(
-                                                rowIndex, colIndex, details),
-                                        onPanUpdate: (details) {
-                                          // If this is the current selected tile, use it for updates
-                                          if (_selectedRow == rowIndex &&
-                                              _selectedCol == colIndex) {
-                                            _handleDragUpdate(
-                                                rowIndex,
-                                                colIndex,
-                                                details,
-                                                adjacentEmptyPos);
-                                          } else if (_selectedRow != null &&
-                                              _selectedCol != null) {
-                                            // Otherwise, use the currently selected tile for updates
-                                            // This allows dragging to continue even when finger moves over different tiles
-                                            _handleDragUpdate(
-                                                _selectedRow!,
-                                                _selectedCol!,
-                                                details,
-                                                adjacentEmptyPos);
-                                          }
-                                        },
-                                        onPanEnd: (details) => _handleDragEnd(
-                                            rowIndex, colIndex, details),
-                                        child: TileWidget(
-                                          value: value,
-                                          isMovable: isMovable,
-                                          isSelected: isSelected,
-                                          isTablet: isTablet,
-                                          borderRadius: isTablet ? 16 : 12,
-                                          movableDirections:
-                                              _getMovableDirections(
-                                                  rowIndex, colIndex),
-                                          onTap: () => _handleTileTap(
-                                              rowIndex, colIndex),
-                                          onDirectionalTap: (direction) {
-                                            if (adjacentEmptyPos
-                                                .containsKey(direction)) {
-                                              widget.onTileTap(
-                                                  rowIndex, colIndex,
-                                                  direction: direction);
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }),
-
-                              // Add rock placeholders for missing columns to make grid square
-                              ...List.generate(maxColsCount - row.length,
-                                  (index) {
-                                return Container(
-                                  width: finalTileSize,
-                                  height: finalTileSize,
-                                  margin: EdgeInsets.all(tilePadding),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[800],
-                                    borderRadius: BorderRadius.circular(
-                                        isTablet ? 16 : 12),
-                                    border: Border.all(
-                                      color: Colors.grey[900]!,
-                                      width: 1.5,
-                                    ),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        Colors.grey[700]!,
-                                        Colors.grey[900]!,
-                                      ],
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
-                                        blurRadius: 3,
-                                        spreadRadius: 0,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Stack(
-                                    children: [
-                                      // Rock texture pattern
-                                      Positioned.fill(
-                                        child: Opacity(
-                                          opacity: 0.1,
-                                          child: CustomPaint(
-                                            painter: RockPatternPainter(),
-                                          ),
-                                        ),
-                                      ),
-                                      // Highlights and shadows for 3D effect
-                                      Positioned.fill(
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(
-                                                isTablet ? 14 : 10),
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                              colors: [
-                                                Colors.white.withOpacity(0.15),
-                                                Colors.transparent,
-                                                Colors.black.withOpacity(0.2),
-                                              ],
-                                              stops: const [0.0, 0.5, 1.0],
+                                    child: Stack(
+                                      children: [
+                                        // Rock texture pattern
+                                        Positioned.fill(
+                                          child: Opacity(
+                                            opacity: 0.1,
+                                            child: CustomPaint(
+                                              painter: RockPatternPainter(),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                                        // Highlights and shadows for 3D effect
+                                        Positioned.fill(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      isTablet ? 14 : 10),
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [
+                                                  Colors.white
+                                                      .withOpacity(0.15),
+                                                  Colors.transparent,
+                                                  Colors.black.withOpacity(0.2),
+                                                ],
+                                                stops: const [0.0, 0.5, 1.0],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
