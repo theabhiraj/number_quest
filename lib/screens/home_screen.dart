@@ -1442,10 +1442,21 @@ class _LevelCardState extends State<LevelCard>
         _animController.stop();
       }
     }
+    
+    // Reload user best time when returning to the screen or when puzzle changes
+    if (oldWidget.puzzle.id != widget.puzzle.id || 
+        (!oldWidget.isLocked && !widget.isLocked)) {
+      _loadUserBestTime();
+    }
   }
 
   Future<void> _loadUserBestTime() async {
     try {
+      // Clear current data first to ensure we always reload from storage
+      setState(() {
+        _userBestTime = double.infinity;
+      });
+      
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         setState(() {
