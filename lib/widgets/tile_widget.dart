@@ -30,31 +30,17 @@ class TileWidget extends StatefulWidget {
   State<TileWidget> createState() => _TileWidgetState();
 }
 
-class _TileWidgetState extends State<TileWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _rotateAnimation;
+class _TileWidgetState extends State<TileWidget> {
   bool _isHovered = false;
+  bool _isPressed = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-    _rotateAnimation = Tween<double>(begin: 0.0, end: 0.01).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticIn),
-    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
     super.dispose();
   }
 
@@ -68,14 +54,18 @@ class _TileWidgetState extends State<TileWidget>
     final theme = Theme.of(context);
 
     if (widget.isSelected) {
-      return theme.colorScheme.primary;
+      return theme.colorScheme.primary.withOpacity(0.8);
+    }
+    
+    if (_isPressed) {
+      return theme.colorScheme.primary.withOpacity(0.7);
     }
 
     // Different shades based on movability
     if (widget.isMovable ||
         (widget.movableDirections != null &&
             widget.movableDirections!.isNotEmpty)) {
-      return theme.colorScheme.primary.withOpacity(0.9);
+      return theme.colorScheme.primary.withOpacity(_isHovered ? 0.95 : 0.9);
     }
 
     return theme.colorScheme.primary.withOpacity(0.7);
@@ -149,11 +139,6 @@ class _TileWidgetState extends State<TileWidget>
 
     // Simplified effects for very small tiles
     final bool useSimplifiedShadow = isVerySmallTile || isSmallTile;
-    
-    // Reduce animation scale for smaller tiles
-    final double maxScaleAnim = isVerySmallTile 
-        ? 0.97 
-        : (isSmallTile ? 0.96 : 0.95);
 
     return AspectRatio(
       aspectRatio: 1.0, // Force perfect square aspect ratio
@@ -163,160 +148,145 @@ class _TileWidgetState extends State<TileWidget>
         child: GestureDetector(
           onTapDown: (_) {
             if (isMovableTile) {
-              _controller.forward();
+              setState(() => _isPressed = true);
             }
           },
           onTapUp: (_) {
             if (isMovableTile && widget.onTap != null) {
-              _controller.reverse();
+              setState(() => _isPressed = false);
               widget.onTap!();
             }
           },
           onTapCancel: () {
             if (isMovableTile) {
-              _controller.reverse();
+              setState(() => _isPressed = false);
             }
           },
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              // Adjust scale animation based on tile size
-              final double scaleValue = 1.0 - ((1.0 - _scaleAnimation.value) * (isVerySmallTile ? 0.4 : (isSmallTile ? 0.6 : 1.0)));
-              
-              return Transform.scale(
-                scale: scaleValue,
-                child: Transform.rotate(
-                  angle: isVerySmallTile ? 0 : _rotateAnimation.value,
-                  child: child,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: BoxDecoration(
+              gradient: isMovableTile
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primaryColor,
+                        secondaryColor,
+                      ],
+                      stops: isVerySmallTile ? const [0.4, 0.9] : const [0.3, 1.0],
+                    )
+                  : null,
+              color: isMovableTile ? null : _getTileColor(),
+              borderRadius: BorderRadius.circular(borderRadius),
+              boxShadow: isMovableTile
+                  ? (useSimplifiedShadow
+                      ? [
+                          BoxShadow(
+                            color: primaryColor
+                                .withOpacity(isVerySmallTile 
+                                    ? (widget.isSelected ? 0.3 : 0.15)
+                                    : (widget.isSelected ? 0.4 : 0.2)),
+                            blurRadius: isVerySmallTile 
+                                ? (widget.isSelected ? 3 : 2) 
+                                : (widget.isSelected ? 4 : 3),
+                            spreadRadius: widget.isSelected ? 0.5 : 0,
+                            offset: Offset(0, isVerySmallTile ? 1 : 1.5),
+                          )
+                        ]
+                      : [
+                          // Outer shadow - reduced for small tiles
+                          BoxShadow(
+                            color: primaryColor.withOpacity(
+                                isVerySmallTile 
+                                    ? 0.25
+                                    : (widget.isSelected || _isHovered ? 0.4 : 0.25)),
+                            blurRadius: isVerySmallTile
+                                ? (widget.isSelected ? 4 : 2)
+                                : (widget.isSelected ? 12 : (_isHovered ? 8 : 5)),
+                            spreadRadius: isVerySmallTile
+                                ? 0
+                                : (widget.isSelected ? 1 : (_isHovered ? 0.5 : 0)),
+                            offset: Offset(0,
+                                isVerySmallTile
+                                    ? 1
+                                    : (widget.isSelected ? 4 : (_isHovered ? 3 : 2))),
+                          )
+                        ])
+                  : null,
+            ),
+            child: Stack(
+              children: [
+                // Center number with improved readability for smaller tiles
+                Center(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Padding(
+                      padding: EdgeInsets.all(isVerySmallTile ? 2.0 : 4.0),
+                      child: Text(
+                        widget.value.toString(),
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w600,
+                          color: isMovableTile
+                              ? Colors.white
+                              : theme.colorScheme.onSurface,
+                          letterSpacing: isQuadDigit
+                              ? (isVerySmallTile ? -1.4 : -1.2)
+                              : isTripleDigit 
+                                  ? (isVerySmallTile ? -1.0 : -0.8)
+                                  : isDoubleDigit 
+                                      ? (isVerySmallTile ? -0.6 : -0.4) 
+                                      : 0,
+                          height: 0.9,
+                          shadows: isMovableTile && !isVerySmallTile
+                              ? [
+                                  Shadow(
+                                    color: Colors.black26,
+                                    blurRadius: 1,
+                                    offset: const Offset(0, 1),
+                                  )
+                                ]
+                              : isMovableTile && isVerySmallTile 
+                                  ? [
+                                      Shadow(
+                                        color: Colors.black38,
+                                        blurRadius: 0.5,
+                                        offset: const Offset(0, 0.5),
+                                      )
+                                    ]
+                                  : null,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
                 ),
-              );
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                gradient: isMovableTile
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          primaryColor,
-                          secondaryColor,
-                        ],
-                        stops: isVerySmallTile ? const [0.4, 0.9] : const [0.3, 1.0],
-                      )
-                    : null,
-                color: isMovableTile ? null : _getTileColor(),
-                borderRadius: BorderRadius.circular(borderRadius),
-                boxShadow: isMovableTile
-                    ? (useSimplifiedShadow
-                        ? [
-                            BoxShadow(
-                              color: primaryColor
-                                  .withOpacity(isVerySmallTile 
-                                      ? (widget.isSelected ? 0.3 : 0.15)
-                                      : (widget.isSelected ? 0.4 : 0.2)),
-                              blurRadius: isVerySmallTile 
-                                  ? (widget.isSelected ? 3 : 2) 
-                                  : (widget.isSelected ? 4 : 3),
-                              spreadRadius: widget.isSelected ? 0.5 : 0,
-                              offset: Offset(0, isVerySmallTile ? 1 : 1.5),
-                            )
-                          ]
-                        : [
-                            // Outer shadow - reduced for small tiles
-                            BoxShadow(
-                              color: primaryColor.withOpacity(
-                                  isVerySmallTile 
-                                      ? 0.25
-                                      : (widget.isSelected || _isHovered ? 0.4 : 0.25)),
-                              blurRadius: isVerySmallTile
-                                  ? (widget.isSelected ? 4 : 2)
-                                  : (widget.isSelected ? 12 : (_isHovered ? 8 : 5)),
-                              spreadRadius: isVerySmallTile
-                                  ? 0
-                                  : (widget.isSelected ? 1 : (_isHovered ? 0.5 : 0)),
-                              offset: Offset(0,
-                                  isVerySmallTile
-                                      ? 1
-                                      : (widget.isSelected ? 4 : (_isHovered ? 3 : 2))),
-                            )
-                          ])
-                    : null,
-              ),
-              child: Stack(
-                children: [
-                  // Center number with improved readability for smaller tiles
-                  Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Padding(
-                        padding: EdgeInsets.all(isVerySmallTile ? 2.0 : 4.0),
-                        child: Text(
-                          widget.value.toString(),
-                          style: TextStyle(
-                            fontSize: fontSize,
-                            fontWeight: FontWeight.w600,
-                            color: isMovableTile
-                                ? Colors.white
-                                : theme.colorScheme.onSurface,
-                            letterSpacing: isQuadDigit
-                                ? (isVerySmallTile ? -1.4 : -1.2)
-                                : isTripleDigit 
-                                    ? (isVerySmallTile ? -1.0 : -0.8)
-                                    : isDoubleDigit 
-                                        ? (isVerySmallTile ? -0.6 : -0.4) 
-                                        : 0,
-                            height: 0.9,
-                            shadows: isMovableTile && !isVerySmallTile
-                                ? [
-                                    Shadow(
-                                      color: Colors.black26,
-                                      blurRadius: 1,
-                                      offset: const Offset(0, 1),
-                                    )
-                                  ]
-                                : isMovableTile && isVerySmallTile 
-                                    ? [
-                                        Shadow(
-                                          color: Colors.black38,
-                                          blurRadius: 0.5,
-                                          offset: const Offset(0, 0.5),
-                                        )
-                                      ]
-                                    : null,
-                          ),
-                          textAlign: TextAlign.center,
+
+                // Add a subtle highlight effect at the top (simplified for small tiles)
+                if (isMovableTile)
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: widget.size * (isVerySmallTile ? 0.2 : (isSmallTile ? 0.22 : 0.25)),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(borderRadius),
+                          topRight: Radius.circular(borderRadius),
+                        ),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withOpacity(isVerySmallTile ? 0.15 : (isSmallTile ? 0.15 : 0.18)),
+                            Colors.white.withOpacity(0.0),
+                          ],
                         ),
                       ),
                     ),
                   ),
-
-                  // Add a subtle highlight effect at the top (simplified for small tiles)
-                  if (isMovableTile)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: widget.size * (isVerySmallTile ? 0.2 : (isSmallTile ? 0.22 : 0.25)),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.only(
-                            topLeft: Radius.circular(borderRadius),
-                            topRight: Radius.circular(borderRadius),
-                          ),
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.white.withOpacity(isVerySmallTile ? 0.15 : (isSmallTile ? 0.15 : 0.18)),
-                              Colors.white.withOpacity(0.0),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              ],
             ),
           ),
         ),

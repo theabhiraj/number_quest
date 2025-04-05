@@ -14,6 +14,7 @@ class ConnectivityService {
   StreamSubscription<ConnectivityResult>? _subscription;
   bool _isDialogShowing = false;
   DateTime? _lastDialogTime;
+  bool _hasShownInitialDialog = false;
 
   // Holds the context from the app's navigatorKey
   late GlobalKey<NavigatorState> navigatorKey;
@@ -36,12 +37,13 @@ class ConnectivityService {
   // Check internet connection when connectivity status changes
   Future<void> _checkInternetConnection(ConnectivityResult result) async {
     if (result == ConnectivityResult.none) {
-      _showNoInternetDialog();
+      // Just show a snackbar instead of a blocking dialog
+      _showNoInternetSnackbar();
     } else {
       // Verify actual internet connectivity with a test request
       final hasInternet = await _hasActualInternetConnection();
       if (!hasInternet) {
-        _showNoInternetDialog();
+        _showNoInternetSnackbar();
       }
     }
   }
@@ -51,12 +53,24 @@ class ConnectivityService {
     final connectivityResult = await _connectivity.checkConnectivity();
 
     if (connectivityResult == ConnectivityResult.none) {
-      _showNoInternetDialog();
+      // Only show the dialog the first time the app is launched
+      if (!_hasShownInitialDialog) {
+        _showNoInternetDialog();
+        _hasShownInitialDialog = true;
+      } else {
+        _showNoInternetSnackbar();
+      }
       return false;
     } else {
       final hasInternet = await _hasActualInternetConnection();
       if (!hasInternet) {
-        _showNoInternetDialog();
+        // Only show the dialog the first time the app is launched
+        if (!_hasShownInitialDialog) {
+          _showNoInternetDialog();
+          _hasShownInitialDialog = true;
+        } else {
+          _showNoInternetSnackbar();
+        }
         return false;
       }
       return true;
@@ -89,6 +103,31 @@ class ConnectivityService {
     }
   }
 
+  // Show a snackbar for no internet connection
+  void _showNoInternetSnackbar() {
+    final context = navigatorKey.currentContext;
+    if (context == null) return;
+
+    // Prevent showing too frequently
+    final now = DateTime.now();
+    if (_lastDialogTime != null && now.difference(_lastDialogTime!).inSeconds < 30) {
+      return;
+    }
+
+    _lastDialogTime = now;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'No internet connection.',
+          style: TextStyle(fontSize: 14),
+        ),
+        duration: Duration(seconds: 3),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
   // Show no internet dialog if not already showing
   void _showNoInternetDialog() {
     // Get current context from navigator key
@@ -117,33 +156,49 @@ class ConnectivityService {
               spacing: 8,
               children: const [
                 Icon(Icons.signal_wifi_connected_no_internet_4,
-                    color: Colors.red),
+                    color: Colors.orange),
                 Text('No Internet Connection'),
               ],
             ),
             content: const Text(
-              'Please connect to the internet to use Number Quest. The app requires an internet connection.',
+              'You are currently offline. You can continue playing with cached puzzles, but leaderboard updates and new puzzles will not be available.',
               style: TextStyle(fontSize: 16),
             ),
             actions: [
               ElevatedButton(
                 onPressed: () async {
                   final hasInternet = await _hasActualInternetConnection();
+                  // Always close the dialog
+                  Navigator.of(context).pop();
+                  _isDialogShowing = false;
+                  
                   if (hasInternet) {
-                    Navigator.of(context).pop();
-                    _isDialogShowing = false;
+                    // Show a success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Connected to the internet. Full features available.'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
                   } else {
-                    // Vibrate or show feedback that internet is still unavailable
+                    // Show a warning but allow continuing
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
-                            'Still no internet connection. Please check your settings.'),
-                        backgroundColor: Colors.red,
+                            'Still no internet connection. Using cached data only.'),
+                        backgroundColor: Colors.orange,
                       ),
                     );
                   }
                 },
                 child: const Text('Check Again'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _isDialogShowing = false;
+                },
+                child: const Text('Continue Offline'),
               ),
             ],
           ),

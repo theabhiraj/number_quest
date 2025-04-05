@@ -388,7 +388,7 @@ class _SplashScreenState extends State<SplashScreen>
                           child: Text(
                             _hasInternet
                                 ? 'Loading puzzles...'
-                                : 'No internet connection. Using cached puzzles.',
+                                : 'No internet connection.',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w400,

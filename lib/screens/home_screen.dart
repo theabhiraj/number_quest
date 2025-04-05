@@ -73,24 +73,48 @@ class _HomeScreenState extends State<HomeScreen>
       _isOffline = false;
     });
 
+    // First try to load from cache immediately for faster startup
+    bool cacheLoaded = await _loadPuzzlesFromCache(showOfflineDialog: false);
+    
+    // Then try to load from Firebase in the background
     try {
-      // First try to load from Firebase
-      await _fetchPuzzlesFromFirebase();
+      // If we successfully loaded from cache, we can set isLoading to false
+      if (cacheLoaded && mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      
+      // Fetch from Firebase
+      await _fetchPuzzlesFromFirebase(isBackground: cacheLoaded);
     } catch (e) {
       developer.log('Firebase error: $e', name: 'HomeScreen');
-
-      // If Firebase fails, try to load from cache
-      await _loadPuzzlesFromCache();
+      
+      // If we haven't already loaded from cache successfully, try again with dialog
+      if (!cacheLoaded) {
+        await _loadPuzzlesFromCache(showOfflineDialog: true);
+      } else if (mounted) {
+        // If cache was loaded but Firebase failed, just show a snackbar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Using cached puzzles. Couldn\'t update from server.'),
+            duration: Duration(seconds: 3),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _fetchPuzzlesFromFirebase() async {
+  Future<void> _fetchPuzzlesFromFirebase({bool isBackground = false}) async {
     try {
       // Check connectivity before fetching puzzles
       final isConnected = await _connectivityService.checkConnection();
       if (!isConnected) {
-        // Show dialog that requires internet connection
-        _connectivityService.checkConnectionAndShowDialog();
+        // Show dialog that requires internet connection only if it's not a background update
+        if (!isBackground) {
+          _connectivityService.checkConnectionAndShowDialog();
+        }
         throw Exception('No internet connection');
       }
 
@@ -99,27 +123,56 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (snapshot.exists) {
         setState(() {
-          _puzzles = [];
+          List<Puzzle> newPuzzles = [];
           final Map<dynamic, dynamic> values = snapshot.value as Map;
           values.forEach((key, value) {
             try {
-              _puzzles.add(Puzzle.fromJson(Map<String, dynamic>.from(value)));
+              newPuzzles.add(Puzzle.fromJson(Map<String, dynamic>.from(value)));
             } catch (e) {
               developer.log('Error parsing puzzle: $e', name: 'HomeScreen');
             }
           });
 
+          // If this is a background refresh, check if puzzles have actually changed
+          bool puzzlesChanged = false;
+          if (isBackground && _puzzles.isNotEmpty) {
+            // Check if the number of puzzles changed
+            if (newPuzzles.length != _puzzles.length) {
+              puzzlesChanged = true;
+            } else {
+              // Check if any puzzle data changed
+              for (int i = 0; i < newPuzzles.length; i++) {
+                if (i < _puzzles.length) {
+                  if (newPuzzles[i].bestTime != _puzzles[i].bestTime ||
+                      newPuzzles[i].bestPlayerName != _puzzles[i].bestPlayerName) {
+                    puzzlesChanged = true;
+                    break;
+                  }
+                }
+              }
+            }
+            
+            // Show a snackbar if puzzles were updated - REMOVING THIS AS REQUESTED
+            if (puzzlesChanged) {
+              // No notification message for updated puzzles
+            }
+          }
+          
+          _puzzles = newPuzzles;
+          
           // Sort puzzles by their level
           _sortPuzzles();
 
           // Save puzzles to cache for offline use
           _savePuzzlesToCache();
 
-          _isLoading = false;
+          if (!isBackground) {
+            _isLoading = false;
+          }
         });
       } else {
         developer.log('No puzzles found in database', name: 'HomeScreen');
-        if (mounted) {
+        if (mounted && !isBackground) {
           setState(() {
             _isLoading = false;
           });
@@ -133,16 +186,19 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _loadPuzzlesFromCache() async {
+  Future<bool> _loadPuzzlesFromCache({bool showOfflineDialog = true}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final puzzlesJson = prefs.getString('cached_puzzles');
 
-      if (!mounted) return;
+      if (!mounted) return false;
 
       if (puzzlesJson != null) {
         setState(() {
-          _isOffline = true;
+          if (showOfflineDialog) {
+            _isOffline = true;
+          }
+          
           _puzzles = [];
 
           // Decode and parse the cached puzzles
@@ -163,16 +219,20 @@ class _HomeScreenState extends State<HomeScreen>
           _isLoading = false;
         });
 
-        if (mounted) {
+        if (mounted && showOfflineDialog) {
           _showOfflineDialog();
         }
+        
+        return true; // Successfully loaded from cache
       } else {
-        if (mounted) {
+        if (mounted && showOfflineDialog) {
           setState(() {
             _isLoading = false;
+            _isOffline = true;
           });
           _showNoInternetDialog();
         }
+        return false; // Failed to load from cache
       }
     } catch (e) {
       developer.log('Cache error: $e', name: 'HomeScreen');
@@ -180,11 +240,14 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           _isLoading = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Failed to load cached puzzles: ${e.toString()}')),
-        );
+        if (showOfflineDialog) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('Failed to load cached puzzles: ${e.toString()}')),
+          );
+        }
       }
+      return false; // Failed to load from cache due to error
     }
   }
 
@@ -198,45 +261,50 @@ class _HomeScreenState extends State<HomeScreen>
 
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false, // Prevent dialog dismiss on back button
-        child: AlertDialog(
-          title: Wrap(
-            spacing: 8,
-            children: const [
-              Icon(Icons.signal_wifi_connected_no_internet_4,
-                  color: Colors.red),
-              Text('No Internet Connection'),
-            ],
-          ),
-          content: const Text(
-            'Please connect to the internet to access the latest puzzles and leaderboards.',
-            style: TextStyle(fontSize: 16),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () async {
-                final hasInternet =
-                    await _connectivityService.checkConnection();
-                if (hasInternet) {
-                  Navigator.of(context).pop();
-                  _refreshPuzzles();
-                } else {
-                  // Vibrate or show feedback that internet is still unavailable
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Still no internet connection. Please check your settings.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: const Text('Check Again'),
-            ),
+      barrierDismissible: true, // Allow dismissing by tapping outside
+      builder: (context) => AlertDialog(
+        title: Wrap(
+          spacing: 8,
+          children: const [
+            Icon(Icons.signal_wifi_connected_no_internet_4,
+                color: Colors.orange),
+            Text('No Internet Connection'),
           ],
         ),
+        content: const Text(
+          'You\'re currently working offline with cached puzzles. Some features like leaderboards may not be available.',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Continue Offline'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final hasInternet =
+                  await _connectivityService.checkConnection();
+              if (hasInternet) {
+                Navigator.of(context).pop();
+                _refreshPuzzles();
+              } else {
+                // Always close the dialog
+                Navigator.of(context).pop();
+                // Show feedback that internet is still unavailable
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                        'Still no internet connection. Using cached puzzles.'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            },
+            child: const Text('Check Connection'),
+          ),
+        ],
       ),
     );
   }
@@ -244,45 +312,49 @@ class _HomeScreenState extends State<HomeScreen>
   void _showNoInternetDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => WillPopScope(
-        onWillPop: () async => false, // Prevent dialog dismiss on back button
-        child: AlertDialog(
-          title: Wrap(
-            spacing: 8,
-            children: const [
-              Icon(Icons.signal_wifi_connected_no_internet_4,
-                  color: Colors.red),
-              Text('No Internet Connection'),
-            ],
-          ),
-          content: const Text(
-            'Please connect to the internet to use Number Quest. The app requires an internet connection to download puzzles.',
-            style: TextStyle(fontSize: 16),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () async {
-                final hasInternet =
-                    await _connectivityService.checkConnection();
-                if (hasInternet) {
-                  Navigator.of(context).pop();
-                  _refreshPuzzles();
-                } else {
-                  // Vibrate or show feedback that internet is still unavailable
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Still no internet connection. Please check your settings.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: const Text('Check Again'),
-            ),
+      barrierDismissible: true, // Allow dismissing by tapping outside
+      builder: (context) => AlertDialog(
+        title: Wrap(
+          spacing: 8,
+          children: const [
+            Icon(Icons.signal_wifi_connected_no_internet_4,
+                color: Colors.orange),
+            Text('No Internet Connection'),
           ],
         ),
+        content: const Text(
+          'You appear to be offline. If you have previously used the app, you can continue with cached puzzles.',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('Continue Offline'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final hasInternet =
+                  await _connectivityService.checkConnection();
+              if (hasInternet) {
+                Navigator.of(context).pop();
+                _refreshPuzzles();
+              } else {
+                // Always close the dialog
+                Navigator.of(context).pop();
+                // Show feedback that internet is still unavailable
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Still no internet connection. You can try again later.'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            },
+            child: const Text('Check Connection'),
+          ),
+        ],
       ),
     );
   }
@@ -317,6 +389,13 @@ class _HomeScreenState extends State<HomeScreen>
       _isLoading = true;
     });
 
+    // First quickly show current cached data while loading
+    if (_puzzles.isNotEmpty) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+
     try {
       // Check connectivity before refreshing puzzles
       final isConnected = await _connectivityService.checkConnection();
@@ -326,16 +405,18 @@ class _HomeScreenState extends State<HomeScreen>
         throw Exception('No internet connection');
       }
 
-      await _fetchPuzzlesFromFirebase();
+      // Load from Firebase in the background if there are already puzzles loaded
+      await _fetchPuzzlesFromFirebase(isBackground: _puzzles.isNotEmpty);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to refresh. Using cached puzzles.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        await _loadPuzzlesFromCache();
+        // Only load from cache if we don't already have puzzles
+        if (_puzzles.isEmpty) {
+          await _loadPuzzlesFromCache();
+        } else {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
@@ -577,19 +658,6 @@ class _HomeScreenState extends State<HomeScreen>
       // Save updated puzzles back to cache
       await _savePuzzlesToCache();
 
-      // Show success message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              updatedRecordsCount > 0
-                  ? 'Name updated on $updatedRecordsCount records!'
-                  : 'No records found with your previous name',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
     } catch (e) {
       // Close loading dialog if there was an error
       if (mounted) {
@@ -598,15 +666,6 @@ class _HomeScreenState extends State<HomeScreen>
 
       developer.log('Error updating player name on records: $e',
           name: 'HomeScreen');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error updating records: ${e.toString()}'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
     }
   }
 
