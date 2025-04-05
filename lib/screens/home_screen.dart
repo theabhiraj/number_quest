@@ -1467,7 +1467,7 @@ class _LevelCardState extends State<LevelCard>
 
   String _formatTime(double time) {
     if (time == double.infinity) {
-      return '00:00:00'; // Show 00:00:00 instead of placeholder
+      return '--:--:--'; // Show a clear placeholder for never completed levels
     }
     if (time == 0) {
       return '00:00:00';

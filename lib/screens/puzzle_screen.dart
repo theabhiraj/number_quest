@@ -1118,7 +1118,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   // Format time for display in best times section
   String _formatDisplayTime(double time) {
     if (time == double.infinity) {
-      return '00:00:00';
+      return '--:--:--';
     }
 
     final seconds = time.floor();
