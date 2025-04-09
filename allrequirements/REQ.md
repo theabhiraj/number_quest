@@ -1,7 +1,7 @@
-# Number Quest - Comprehensive Specifications
+# No. Quest - Comprehensive Specifications
 
 ## Application Overview
-Number Quest is a puzzle game built with Flutter that challenges players to arrange numbered tiles in the correct order. The unique twist is that each puzzle contains two empty spaces instead of the traditional single space, adding strategic depth to the gameplay.
+No. Quest is a puzzle game built with Flutter that challenges players to arrange numbered tiles in the correct order. The unique twist is that each puzzle contains two empty spaces instead of the traditional single space, adding strategic depth to the gameplay.
 
 ## Target Platforms
 - Android
@@ -123,4 +123,4 @@ Number Quest is a puzzle game built with Flutter that challenges players to arra
 - AnimatedContainer for smooth tile transitions
 - Singleton pattern for game state management
 
-This document serves as a comprehensive reference for the Number Quest app's requirements, design, and implementation plan. 
+This document serves as a comprehensive reference for the No. Quest app's requirements, design, and implementation plan. 

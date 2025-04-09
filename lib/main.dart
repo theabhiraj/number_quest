@@ -3,17 +3,20 @@
 import 'dart:async';
 // ignore: unused_import
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'models/puzzle.dart';
 import 'services/connectivity_service.dart';
+import 'services/ad_service.dart';
 
 // Global navigator key to access context from anywhere
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -33,6 +36,24 @@ void main() async {
     systemNavigationBarColor: Colors.transparent,
     systemNavigationBarDividerColor: Colors.transparent,
   ));
+
+  // Initialize ad service with retries
+  bool adsInitialized = false;
+  int attempts = 0;
+  
+  while (!adsInitialized && attempts < 3) {
+    try {
+      await AdService().initialize();
+      adsInitialized = true;
+    } catch (e) {
+      attempts++;
+      debugPrint('Ad initialization attempt $attempts failed: $e');
+      // Wait before retrying
+      if (attempts < 3) {
+        await Future.delayed(Duration(seconds: math.pow(2, attempts).toInt()));
+      }
+    }
+  }
 
   try {
     await Firebase.initializeApp(
@@ -70,7 +91,7 @@ class _MyAppState extends State<MyApp> {
     const customBackground = Color(0xFFF8F9FC);
 
     return MaterialApp(
-      title: 'Number Quest',
+      title: 'No. Quest',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey, // Set the navigator key
       theme: ThemeData(
@@ -80,8 +101,7 @@ class _MyAppState extends State<MyApp> {
           seedColor: customPrimary,
           secondary: customSecondary,
           tertiary: customAccent,
-          background: customBackground,
-          surface: Colors.white,
+          surface: customBackground,
           brightness: Brightness.light,
         ),
         useMaterial3: true,
@@ -324,7 +344,7 @@ class _SplashScreenState extends State<SplashScreen>
                           end: Alignment.bottomCenter,
                         ).createShader(bounds),
                         child: const Text(
-                          'Number Quest',
+                          'No. Quest',
                           style: TextStyle(
                             fontSize: 42,
                             fontWeight: FontWeight.bold,
@@ -416,7 +436,7 @@ class ErrorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Number Quest',
+      title: 'No. Quest',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

@@ -1,4 +1,4 @@
-// ignore_for_file: unused_local_variable
+// ignore_for_file: unused_local_variable, unused_element
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -6,9 +6,11 @@ import 'dart:math' as math;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../models/puzzle.dart';
 import '../services/connectivity_service.dart';
+import '../services/ad_service.dart';
 import '../widgets/puzzle_grid.dart';
 import '../main.dart'; // Import for navigatorKey
 
@@ -47,6 +49,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
   bool _isPlayerNameLoaded = false;
   Timer? _connectivityCheckTimer;
   final ConnectivityService _connectivityService = ConnectivityService();
+  final AdService _adService = AdService();
   DateTime? _startTime; // Add start time tracking
 
   @override
@@ -89,6 +92,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     // Start periodic connectivity checks
     _connectivityCheckTimer = Timer.periodic(const Duration(seconds: 30),
         (_) => _connectivityService.checkConnectionAndShowDialog());
+
+    // Preload an interstitial ad for when user completes the level
+    _adService.preloadInterstitialAd();
   }
 
   Future<void> _loadUserBestTime() async {
@@ -486,7 +492,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                     vertical: isSmallScreen ? 14 : 20,
                                     horizontal: isSmallScreen ? 12 : 16),
                                 decoration: BoxDecoration(
-                                  color: widget.customPrimary.withOpacity(0.1),
+                                  color: Theme.of(context).colorScheme.surface,
                                   borderRadius: BorderRadius.circular(16),
                                 ),
                                 child: Column(
@@ -605,11 +611,11 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                       horizontal: isSmallScreen ? 12 : 16),
                                   decoration: BoxDecoration(
                                     color:
-                                        widget.customSecondary.withOpacity(0.1),
+                                        Theme.of(context).colorScheme.surface,
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
-                                      color: widget.customSecondary
-                                          .withOpacity(0.3),
+                                      color: Theme.of(context)
+                                          .colorScheme.surface,
                                       width: 1,
                                     ),
                                   ),
@@ -619,7 +625,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                         padding: EdgeInsets.all(
                                             isSmallScreen ? 6 : 8),
                                         decoration: BoxDecoration(
-                                          color: widget.customSecondary,
+                                          color: Theme.of(context)
+                                              .colorScheme.surface,
                                           shape: BoxShape.circle,
                                         ),
                                         child: Icon(
@@ -643,7 +650,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                                         isSmallScreen ? 12 : 14,
                                                     fontWeight: FontWeight.bold,
                                                     color:
-                                                        widget.customSecondary,
+                                                        Theme.of(context)
+                                                            .colorScheme
+                                                            .surface,
                                                   ),
                                                 ),
                                                 if (playerName.isNotEmpty &&
@@ -658,8 +667,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                                           FontWeight.w500,
                                                       fontStyle:
                                                           FontStyle.italic,
-                                                      color: widget
-                                                          .customSecondary
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .surface
                                                           .withOpacity(0.8),
                                                     ),
                                                   ),
@@ -670,7 +680,9 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                               style: TextStyle(
                                                 fontSize:
                                                     isSmallScreen ? 10 : 12,
-                                                color: widget.customSecondary
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .surface
                                                     .withOpacity(0.7),
                                               ),
                                             ),
@@ -714,8 +726,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                   ElevatedButton(
                                     onPressed: () {
                                       Navigator.of(context).pop();
-                                      Navigator.of(context)
-                                          .pop(); // Go back to the puzzle list
+                                      _navigateBack(); // Use the navigation method with ad
                                     },
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: widget.customPrimary,
@@ -749,8 +760,8 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                                   onPressed: () {
                                     // Pop dialog first
                                     Navigator.of(context).pop();
-                                    // Pop current level and pass 'next' parameter to indicate next level should be loaded
-                                    Navigator.of(context).pop('next');
+                                    // Use the navigation method with ad
+                                    _navigateToNextLevel();
                                   },
                                   icon: const Icon(Icons.arrow_forward_rounded),
                                   label: Text(
@@ -1240,6 +1251,27 @@ class _PuzzleScreenState extends State<PuzzleScreen>
     }
   }
 
+  // Add these methods to handle navigation with interstitial ads
+  void _navigateBack() async {
+    // Show an interstitial ad when navigating back
+    await _adService.showInterstitialAd();
+    
+    // Then navigate back
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+  
+  void _navigateToNextLevel() async {
+    // Show an interstitial ad when going to next level
+    await _adService.showInterstitialAd();
+    
+    // Then navigate to next level
+    if (mounted) {
+      Navigator.of(context).pop('next');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get screen size for responsive design
@@ -1265,6 +1297,12 @@ class _PuzzleScreenState extends State<PuzzleScreen>
           _showExitConfirmation();
           return false;
         }
+        
+        // Show interstitial ad when navigating back with system back button
+        if (!_isPlaying) {
+          await _adService.showInterstitialAd();
+        }
+        
         return true;
       },
       child: Scaffold(
@@ -1272,17 +1310,17 @@ class _PuzzleScreenState extends State<PuzzleScreen>
           backgroundColor: widget.customPrimary,
           title: Row(
             children: [
-              // CircleAvatar(
-              //   backgroundColor: Colors.white.withOpacity(0.2),
-              //   child: Text(
-              //     _extractLevelNumber(_currentPuzzle.title).toString(),
-              //     style: TextStyle(
-              //       color: Colors.white,
-              //       fontWeight: FontWeight.bold,
-              //       fontSize: isTablet ? 16 : 14,
-              //     ),
-              //   ),
-              // ),
+              CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.2),
+                child: Text(
+                  _extractLevelNumber(_currentPuzzle.title).toString(),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: isTablet ? 16 : 14,
+                  ),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1290,20 +1328,22 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                   style: TextStyle(
                     fontSize: isTablet ? 18 : 15,
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () {
+            onPressed: () async {
               if (_isPlaying) {
                 _showExitConfirmation();
               } else {
-                Navigator.of(context).pop();
+                // Show interstitial ad when navigating back with back button
+                await _adService.showInterstitialAd();
+                if (mounted) {
+                  Navigator.of(context).pop();
+                }
               }
             },
           ),
@@ -1350,7 +1390,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                   vertical: verticalPadding / 2,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.05),
@@ -1479,6 +1519,7 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                   ],
                 ),
               ),
+              
               // Puzzle grid (main content)
               Expanded(
                 child: Center(
@@ -1520,11 +1561,23 @@ class _PuzzleScreenState extends State<PuzzleScreen>
                   ),
                 ),
               ),
+              
+              // Banner ad above the buttons
+              if (_adService.isAdAvailable())
+                Container(
+                  width: double.infinity,
+                  height: 50, // Standard banner height
+                  child: _adService.createBannerAd(
+                    adSize: AdSize.banner,
+                    adPlacement: 'puzzle_screen_above_buttons',
+                  ),
+                ),
+                
               // Bottom control buttons
               Container(
                 padding: EdgeInsets.all(horizontalPadding),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.05),
@@ -1631,7 +1684,7 @@ class TimerCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       height: 60, // Reduced height
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1723,7 +1776,7 @@ class BestTimeCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       height: 70, // Reduced height
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -1794,7 +1847,7 @@ class UserBestTimeCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       height: 70, // Reduced height
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(

@@ -1,7 +1,7 @@
-# Number Quest - Development Guide & Prompts
+# No. Quest - Development Guide & Prompts
 
 ## Project Overview
-Create a Flutter puzzle game app named "Number Quest" that challenges players to arrange numbered tiles in the correct order using a unique dual empty space mechanic. The app fetches 525 puzzles from Firebase Realtime Database with grid sizes ranging from 2×2 to 7×7. Features include timer tracking, best time records, hints, difficulty levels, and responsive design.
+Create a Flutter puzzle game app named "No. Quest" that challenges players to arrange numbered tiles in the correct order using a unique dual empty space mechanic. The app fetches 525 puzzles from Firebase Realtime Database with grid sizes ranging from 2×2 to 7×7. Features include timer tracking, best time records, hints, difficulty levels, and responsive design.
 
 ## Development Prompts
 
@@ -42,7 +42,7 @@ Configure Firebase rules to allow read/write access.
 
 ### File Structure Implementation Prompt
 ```
-Create the following directory structure for the Number Quest app:
+Create the following directory structure for the No. Quest app:
 /lib
   ├── main.dart                    // App entry point and Firebase initialization
   ├── screens/
@@ -283,4 +283,4 @@ Widget buildGrid(BuildContext context, List<List<int>> grid) {
 }
 ```
 
-This comprehensive guide provides all necessary prompts and implementation details to recreate the Number Quest app with its unique dual empty space puzzle mechanics.
+This comprehensive guide provides all necessary prompts and implementation details to recreate the No. Quest app with its unique dual empty space puzzle mechanics.

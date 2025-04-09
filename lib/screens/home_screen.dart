@@ -7,9 +7,11 @@ import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import '../models/puzzle.dart';
 import '../services/connectivity_service.dart';
+import '../services/ad_service.dart';
 import 'puzzle_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -32,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<double> _staggeredAnimation;
   Timer? _connectivityCheckTimer;
   final ConnectivityService _connectivityService = ConnectivityService();
+  final AdService _adService = AdService();
   // Define customPrimary color
   final Color customPrimary = const Color(0xFF5B4CFF);
   final Color customSecondary = const Color(0xFF52C9DF);
@@ -921,19 +924,21 @@ class _HomeScreenState extends State<HomeScreen>
 
     // After returning from the puzzle screen
     if (mounted) {
-      // Always refresh puzzles list to ensure unlocked levels are updated
-      await _refreshPuzzles();
-
       // Check if result is 'next' to navigate to the next level
       if (result == 'next') {
         // Find the next puzzle
         int currentIndex = _puzzles.indexWhere((p) => p.id == puzzle.id);
         if (currentIndex != -1 && currentIndex < _puzzles.length - 1) {
-          // Small delay to ensure UI is updated before navigating
-          await Future.delayed(const Duration(milliseconds: 100));
-          // Navigate to the next puzzle
+          // Navigate directly to the next puzzle without delay
           _navigateToPuzzle(_puzzles[currentIndex + 1]);
+          
+          // After navigation has started, refresh puzzles list in the background 
+          // to ensure unlocked levels are updated for when user returns to home
+          _refreshPuzzles();
         }
+      } else {
+        // Only refresh puzzles if not going to next level
+        await _refreshPuzzles();
       }
     }
   }
@@ -964,411 +969,427 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: _refreshPuzzles,
-        color: customPrimary,
-        backgroundColor: Colors.white,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics()),
-          slivers: [
-            SliverAppBar(
-              expandedHeight: isTablet ? 220 : (isMediumScreen ? 190 : 170),
-              pinned: true,
-              elevation: 0,
-              backgroundColor: customPrimary,
-              actions: [
-                // Profile button for user name
-                IconButton(
-                  icon: const Icon(Icons.person, color: Colors.white),
-                  tooltip: 'Set Player Name',
-                  onPressed: () {
-                    _showUserNameDialog(context);
-                  },
-                ),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                title: const Text(
-                  'No. Quest',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    fontSize: 24,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(0, 1),
-                        blurRadius: 3.0,
-                        color: Color.fromARGB(100, 0, 0, 0),
+      body: Column(
+        children: [
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshPuzzles,
+              color: customPrimary,
+              backgroundColor: Colors.white,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics()),
+                slivers: [
+                  SliverAppBar(
+                    expandedHeight: isTablet ? 220 : (isMediumScreen ? 190 : 170),
+                    pinned: true,
+                    elevation: 0,
+                    backgroundColor: customPrimary,
+                    actions: [
+                      // Profile button for user name
+                      IconButton(
+                        icon: const Icon(Icons.person, color: Colors.white),
+                        tooltip: 'Set Player Name',
+                        onPressed: () {
+                          _showUserNameDialog(context);
+                        },
                       ),
                     ],
-                  ),
-                ),
-                centerTitle: true,
-                titlePadding: const EdgeInsets.only(bottom: 16),
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Background gradient for the app bar
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF7669FF), // Lighter shade
-                            Color(0xFF5B4CFF), // Main color
-                            Color(0xFF4F40E3), // Darker shade
+                    flexibleSpace: FlexibleSpaceBar(
+                      title: const Text(
+                        'No. Quest',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          fontSize: 24,
+                          color: Colors.white,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(0, 1),
+                              blurRadius: 3.0,
+                              color: Color.fromARGB(100, 0, 0, 0),
+                            ),
                           ],
-                          stops: [0.0, 0.6, 1.0],
                         ),
                       ),
-                    ),
-                    // Enhanced pattern overlay
-                    Positioned.fill(
-                      child: ShaderMask(
-                        shaderCallback: (Rect bounds) {
-                          return LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.white.withOpacity(0.15),
-                              Colors.white.withOpacity(0.05),
-                            ],
-                          ).createShader(bounds);
-                        },
-                        blendMode: BlendMode.srcOver,
-                        child: Opacity(
-                          opacity: 0.1,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                center: Alignment.center,
-                                radius: 1.0,
-                                colors: [
-                                  Colors.white.withOpacity(0.4),
-                                  Colors.white.withOpacity(0.1),
-                                ],
-                                stops: const [0.2, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Decorative numbers pattern with improved styling
-                    Positioned.fill(
-                      child: ShaderMask(
-                        shaderCallback: (rect) {
-                          return LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.white.withAlpha(40)
-                            ],
-                          ).createShader(rect);
-                        },
-                        blendMode: BlendMode.dstIn,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: List.generate(
-                            5,
-                            (index) => Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                fontSize: isTablet
-                                    ? (70 + (index * 12))
-                                    : (50 + (index * 10)),
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white.withOpacity(0.15),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // App title decorative element
-                    Positioned(
-                      top: isTablet ? 75 : 55,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isTablet ? 25 : 20,
-                            vertical: isTablet ? 10 : 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.grid_3x3,
-                                color: Colors.white,
-                                size: isTablet ? 28 : 24,
-                              ),
-                              SizedBox(width: isTablet ? 10 : 8),
-                              const Text(
-                                'PUZZLES',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            if (_isLoading)
-              const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (_puzzles.isEmpty)
-              SliverFillRemaining(
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(30),
-                    margin: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          blurRadius: 20,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.assignment_outlined,
-                            size: 50,
-                            color: Colors.grey[400],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          'No Puzzles Available',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.grey[700],
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Check back later for new challenges',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: _refreshPuzzles,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Refresh'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: customPrimary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    // Add a "Resume" button at the top if there's a next level to play
-                    if (index == 0 && nextLevelToPlay != null) {
-                      // Find the puzzle for the next level
-                      final resumePuzzle = _puzzles.firstWhere(
-                        (puzzle) =>
-                            _extractLevelNumber(puzzle.title) ==
-                            nextLevelToPlay,
-                        orElse: () => _puzzles.first,
-                      );
-
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-                        child: GestureDetector(
-                          onTap: () {
-                            _navigateToPuzzle(resumePuzzle);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
+                      centerTitle: true,
+                      titlePadding: const EdgeInsets.only(bottom: 16),
+                      background: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // Background gradient for the app bar
+                          Container(
+                            decoration: const BoxDecoration(
                               gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  customPrimary.withOpacity(0.9),
-                                  customSecondary.withOpacity(0.9),
+                                  Color(0xFF7669FF), // Lighter shade
+                                  Color(0xFF5B4CFF), // Main color
+                                  Color(0xFF4F40E3), // Darker shade
                                 ],
+                                stops: [0.0, 0.6, 1.0],
                               ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: customPrimary.withOpacity(0.3),
-                                  blurRadius: 10,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.play_circle_filled_rounded,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                                const SizedBox(width: 12),
-                                Text(
-                                  'Resume Level $nextLevelToPlay',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
+                          ),
+                          // Enhanced pattern overlay
+                          Positioned.fill(
+                            child: ShaderMask(
+                              shaderCallback: (Rect bounds) {
+                                return LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.white.withOpacity(0.15),
+                                    Colors.white.withOpacity(0.05),
+                                  ],
+                                ).createShader(bounds);
+                              },
+                              blendMode: BlendMode.srcOver,
+                              child: Opacity(
+                                opacity: 0.1,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: RadialGradient(
+                                      center: Alignment.center,
+                                      radius: 1.0,
+                                      colors: [
+                                        Colors.white.withOpacity(0.4),
+                                        Colors.white.withOpacity(0.1),
+                                      ],
+                                      stops: const [0.2, 1.0],
+                                    ),
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }
-
-                    // Adjust index for puzzle items if we added the resume button
-                    final puzzleIndex =
-                        nextLevelToPlay != null ? index - 1 : index;
-                    if (puzzleIndex >= _puzzles.length || puzzleIndex < 0)
-                      return null;
-
-                    // Start the animation once the levels are being built
-                    if (index == (nextLevelToPlay != null ? 1 : 0)) {
-                      _animationController.forward();
-                    }
-
-                    final puzzle = _puzzles[puzzleIndex];
-                    final levelNumber = _extractLevelNumber(puzzle.title);
-                    final isUnlocked = _unlockedLevels[levelNumber] ?? false;
-
-                    // Create a staggered animation delay based on index
-                    final Animation<double> itemAnimation = Tween<double>(
-                      begin: 0.0,
-                      end: 1.0,
-                    ).animate(
-                      CurvedAnimation(
-                        parent: _animationController,
-                        curve: Interval(
-                          0.1 *
-                              (puzzleIndex % 10) /
-                              10, // Stagger based on index
-                          0.1 * (puzzleIndex % 10) / 10 + 0.5,
-                          curve: Curves.easeOut,
+                          // Decorative numbers pattern with improved styling
+                          Positioned.fill(
+                            child: ShaderMask(
+                              shaderCallback: (rect) {
+                                return LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.white.withAlpha(40)
+                                  ],
+                                ).createShader(rect);
+                              },
+                              blendMode: BlendMode.dstIn,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                children: List.generate(
+                                  5,
+                                  (index) => Text(
+                                    '${index + 1}',
+                                    style: TextStyle(
+                                      fontSize: isTablet
+                                          ? (70 + (index * 12))
+                                          : (50 + (index * 10)),
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white.withOpacity(0.15),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          // App title decorative element
+                          Positioned(
+                            top: isTablet ? 75 : 55,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isTablet ? 25 : 20,
+                                  vertical: isTablet ? 10 : 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.grid_3x3,
+                                      color: Colors.white,
+                                      size: isTablet ? 28 : 24,
+                                    ),
+                                    SizedBox(width: isTablet ? 10 : 8),
+                                    const Text(
+                                      'PUZZLES',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_isLoading)
+                    const SliverFillRemaining(
+                      child: Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_puzzles.isEmpty)
+                    SliverFillRemaining(
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(30),
+                          margin: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.withOpacity(0.1),
+                                blurRadius: 20,
+                                spreadRadius: 5,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.assignment_outlined,
+                                  size: 50,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'No Puzzles Available',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Check back later for new challenges',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _refreshPuzzles,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Refresh'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: customPrimary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    );
+                    )
+                  else
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          // Add a "Resume" button at the top if there's a next level to play
+                          if (index == 0 && nextLevelToPlay != null) {
+                            // Find the puzzle for the next level
+                            final resumePuzzle = _puzzles.firstWhere(
+                              (puzzle) =>
+                                  _extractLevelNumber(puzzle.title) ==
+                                  nextLevelToPlay,
+                              orElse: () => _puzzles.first,
+                            );
 
-                    return AnimatedBuilder(
-                      animation: itemAnimation,
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, 10 * (1 - itemAnimation.value)),
-                          child: Opacity(
-                            opacity: itemAnimation.value,
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          left: 16,
-                          right: 16,
-                          top: puzzleIndex == 0 ? 20 : 12,
-                          bottom: 4,
-                        ),
-                        child: LevelCard(
-                          puzzle: puzzle,
-                          isLocked: !isUnlocked,
-                          onTap: () {
-                            if (!isUnlocked) {
-                              // Show locked level message with enhanced styling
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.lock_outline,
-                                        color: Colors.white,
-                                        size: 18,
+                            return Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                              child: GestureDetector(
+                                onTap: () {
+                                  _navigateToPuzzle(resumePuzzle);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        customPrimary.withOpacity(0.9),
+                                        customSecondary.withOpacity(0.9),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: customPrimary.withOpacity(0.3),
+                                        blurRadius: 10,
+                                        spreadRadius: 1,
+                                        offset: const Offset(0, 4),
                                       ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          'Complete Level ${levelNumber - 1} to unlock this level',
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.play_circle_filled_rounded,
+                                        color: Colors.white,
+                                        size: 28,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        'Resume Level $nextLevelToPlay',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.5,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  backgroundColor: Colors.orange.shade800,
-                                  duration: const Duration(seconds: 2),
-                                  behavior: SnackBarBehavior.floating,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          // Adjust index for puzzle items if we added the resume button
+                          final puzzleIndex =
+                              nextLevelToPlay != null ? index - 1 : index;
+                          if (puzzleIndex >= _puzzles.length || puzzleIndex < 0)
+                            return null;
+
+                          // Start the animation once the levels are being built
+                          if (index == (nextLevelToPlay != null ? 1 : 0)) {
+                            _animationController.forward();
+                          }
+
+                          final puzzle = _puzzles[puzzleIndex];
+                          final levelNumber = _extractLevelNumber(puzzle.title);
+                          final isUnlocked = _unlockedLevels[levelNumber] ?? false;
+
+                          // Create a staggered animation delay based on index
+                          final Animation<double> itemAnimation = Tween<double>(
+                            begin: 0.0,
+                            end: 1.0,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _animationController,
+                              curve: Interval(
+                                0.1 *
+                                    (puzzleIndex % 10) /
+                                    10, // Stagger based on index
+                                0.1 * (puzzleIndex % 10) / 10 + 0.5,
+                                curve: Curves.easeOut,
+                              ),
+                            ),
+                          );
+
+                          return AnimatedBuilder(
+                            animation: itemAnimation,
+                            builder: (context, child) {
+                              return Transform.translate(
+                                offset: Offset(0, 10 * (1 - itemAnimation.value)),
+                                child: Opacity(
+                                  opacity: itemAnimation.value,
+                                  child: child,
                                 ),
                               );
-                              return;
-                            }
+                            },
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: 16,
+                                right: 16,
+                                top: puzzleIndex == 0 ? 20 : 12,
+                                bottom: 4,
+                              ),
+                              child: LevelCard(
+                                puzzle: puzzle,
+                                isLocked: !isUnlocked,
+                                onTap: () {
+                                  if (!isUnlocked) {
+                                    // Show locked level message with enhanced styling
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.lock_outline,
+                                              color: Colors.white,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Text(
+                                                'Complete Level ${levelNumber - 1} to unlock this level',
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        backgroundColor: Colors.orange.shade800,
+                                        duration: const Duration(seconds: 2),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
 
-                            _navigateToPuzzle(puzzle);
-                          },
-                          customPrimary: customPrimary,
-                          customSecondary: customSecondary,
-                        ),
+                                  _navigateToPuzzle(puzzle);
+                                },
+                                customPrimary: customPrimary,
+                                customSecondary: customSecondary,
+                              ),
+                            ),
+                          );
+                        },
+                        childCount: _puzzles.isEmpty
+                            ? 0
+                            : (_puzzles.length + (nextLevelToPlay != null ? 1 : 0)),
                       ),
-                    );
-                  },
-                  childCount: _puzzles.isEmpty
-                      ? 0
-                      : (_puzzles.length + (nextLevelToPlay != null ? 1 : 0)),
-                ),
+                    ),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+          // Banner Ad at the bottom
+          if (_adService.isAdAvailable())
+            Container(
+              width: double.infinity,
+              height: 50, // Standard banner height
+              child: AdService().createBannerAd(
+                adSize: AdSize.banner,
+                adPlacement: 'home_screen_bottom',
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1561,46 +1582,27 @@ class _LevelCardState extends State<LevelCard>
             curve: Curves.easeInOut,
             margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 0),
             decoration: BoxDecoration(
-              color: cardColor,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: _isHovering && !widget.isLocked
-                      ? widget.customPrimary.withAlpha(40)
-                      : Colors.black.withAlpha(10),
-                  blurRadius: _isHovering && !widget.isLocked ? 12 : 6,
-                  spreadRadius: _isHovering && !widget.isLocked ? 2 : 0,
-                  offset: Offset(0, _isHovering && !widget.isLocked ? 4 : 2),
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
               ],
-              gradient: widget.isLocked
-                  ? null
-                  : _isHovering
-                      ? LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white,
-                            Colors.white.withOpacity(0.95),
-                          ],
-                        )
-                      : null,
             ),
             child: Container(
               decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: widget.isLocked
-                      ? Colors.grey.withAlpha(100)
-                      : _isHovering
-                          ? widget.customPrimary.withAlpha(60)
-                          : Colors.transparent,
-                  width: 2,
-                ),
-                gradient:
-                    borderGradient != null && _isHovering && !widget.isLocked
-                        ? borderGradient
-                        : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Stack(
                 children: [

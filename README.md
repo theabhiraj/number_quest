@@ -1,4 +1,4 @@
-# Number Quest
+# No. Quest
 
 A Flutter puzzle game app that dynamically fetches puzzles from Firebase Realtime Database. The puzzles can be of varying grid sizes (e.g., 3×3, 4×3, 6×6).
 
@@ -87,9 +87,9 @@ A Flutter puzzle game app that dynamically fetches puzzles from Firebase Realtim
 
 This project is licensed under the MIT License.
 
-# Number Quest Puzzles
+# No. Quest Puzzles
 
-This repository contains 525 puzzles for the Number Quest game, organized from easiest to hardest difficulty levels.
+This repository contains 525 puzzles for the No. Quest game, organized from easiest to hardest difficulty levels.
 
 ## Puzzle Structure
 
