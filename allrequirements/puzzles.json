@@ -1,0 +1,1127 @@
+{
+  "puzzle5": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        23,
+        53,
+        61
+      ],
+      [
+        75,
+        81,
+        94
+      ],
+      [
+        0,
+        0,
+        99
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle5",
+    "solution": [
+      [
+        23,
+        53,
+        61
+      ],
+      [
+        75,
+        81,
+        94
+      ],
+      [
+        99,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 5"
+  },
+  "puzzle6": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        4,
+        7,
+        24
+      ],
+      [
+        0,
+        39,
+        0
+      ],
+      [
+        27,
+        73,
+        64
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle6",
+    "solution": [
+      [
+        4,
+        7,
+        24
+      ],
+      [
+        27,
+        39,
+        64
+      ],
+      [
+        73,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 6"
+  },
+  "puzzle7": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        25,
+        31,
+        0
+      ],
+      [
+        63,
+        26,
+        73
+      ],
+      [
+        0,
+        95,
+        67
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle7",
+    "solution": [
+      [
+        25,
+        26,
+        31
+      ],
+      [
+        63,
+        67,
+        73
+      ],
+      [
+        95,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 7"
+  },
+  "puzzle8": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        5,
+        19
+      ],
+      [
+        0,
+        16,
+        38
+      ],
+      [
+        73,
+        36,
+        40
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle8",
+    "solution": [
+      [
+        5,
+        16,
+        19
+      ],
+      [
+        36,
+        38,
+        40
+      ],
+      [
+        73,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 8"
+  },
+  "puzzle9": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        61,
+        62
+      ],
+      [
+        52,
+        86,
+        92
+      ],
+      [
+        69,
+        97,
+        0
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle9",
+    "solution": [
+      [
+        52,
+        61,
+        62
+      ],
+      [
+        69,
+        86,
+        92
+      ],
+      [
+        97,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 9"
+  },
+  "puzzle10": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        2,
+        11,
+        0
+      ],
+      [
+        52,
+        89,
+        14
+      ],
+      [
+        19,
+        0,
+        56
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle10",
+    "solution": [
+      [
+        2,
+        11,
+        14
+      ],
+      [
+        19,
+        52,
+        56
+      ],
+      [
+        89,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 10"
+  },
+  "puzzle11": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        75,
+        0,
+        35
+      ],
+      [
+        0,
+        22,
+        52
+      ],
+      [
+        93,
+        79,
+        80
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle11",
+    "solution": [
+      [
+        22,
+        35,
+        52
+      ],
+      [
+        75,
+        79,
+        80
+      ],
+      [
+        93,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 11"
+  },
+  "puzzle12": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        24,
+        0,
+        45
+      ],
+      [
+        51,
+        0,
+        40
+      ],
+      [
+        85,
+        81,
+        69
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle12",
+    "solution": [
+      [
+        24,
+        40,
+        45
+      ],
+      [
+        51,
+        69,
+        81
+      ],
+      [
+        85,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 12"
+  },
+  "puzzle13": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        12,
+        20
+      ],
+      [
+        27,
+        0,
+        17
+      ],
+      [
+        76,
+        65,
+        48
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle13",
+    "solution": [
+      [
+        12,
+        17,
+        20
+      ],
+      [
+        27,
+        48,
+        65
+      ],
+      [
+        76,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 13"
+  },
+  "puzzle14": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        17,
+        26
+      ],
+      [
+        0,
+        12,
+        50
+      ],
+      [
+        63,
+        44,
+        60
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle14",
+    "solution": [
+      [
+        12,
+        17,
+        26
+      ],
+      [
+        44,
+        50,
+        60
+      ],
+      [
+        63,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 14"
+  },
+  "puzzle15": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        25,
+        29,
+        53
+      ],
+      [
+        91,
+        78,
+        0
+      ],
+      [
+        59,
+        65,
+        0
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle15",
+    "solution": [
+      [
+        25,
+        29,
+        53
+      ],
+      [
+        59,
+        65,
+        78
+      ],
+      [
+        91,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 15"
+  },
+  "puzzle16": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        28,
+        0
+      ],
+      [
+        3,
+        19,
+        44
+      ],
+      [
+        35,
+        30,
+        68
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle16",
+    "solution": [
+      [
+        3,
+        19,
+        28
+      ],
+      [
+        30,
+        35,
+        44
+      ],
+      [
+        68,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 16"
+  },
+  "puzzle17": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        55,
+        30
+      ],
+      [
+        2,
+        64,
+        0
+      ],
+      [
+        59,
+        93,
+        67
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle17",
+    "solution": [
+      [
+        2,
+        30,
+        55
+      ],
+      [
+        59,
+        64,
+        67
+      ],
+      [
+        93,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 17"
+  },
+  "puzzle18": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        9,
+        85
+      ],
+      [
+        6,
+        97,
+        93
+      ],
+      [
+        7,
+        23,
+        0
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle18",
+    "solution": [
+      [
+        6,
+        7,
+        9
+      ],
+      [
+        23,
+        85,
+        93
+      ],
+      [
+        97,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 18"
+  },
+  "puzzle19": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        78,
+        0,
+        15
+      ],
+      [
+        12,
+        0,
+        72
+      ],
+      [
+        94,
+        93,
+        69
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle19",
+    "solution": [
+      [
+        12,
+        15,
+        69
+      ],
+      [
+        72,
+        78,
+        93
+      ],
+      [
+        94,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 19"
+  },
+  "puzzle20": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        0,
+        33,
+        0
+      ],
+      [
+        14,
+        40,
+        39
+      ],
+      [
+        91,
+        78,
+        57
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle20",
+    "solution": [
+      [
+        14,
+        33,
+        39
+      ],
+      [
+        40,
+        57,
+        78
+      ],
+      [
+        91,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 20"
+  },
+  "puzzle21": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        6,
+        99,
+        0
+      ],
+      [
+        74,
+        24,
+        0
+      ],
+      [
+        61,
+        88,
+        44
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle21",
+    "solution": [
+      [
+        6,
+        24,
+        44
+      ],
+      [
+        61,
+        74,
+        88
+      ],
+      [
+        99,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 21"
+  },
+  "puzzle22": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        49,
+        0,
+        90
+      ],
+      [
+        36,
+        86,
+        0
+      ],
+      [
+        35,
+        58,
+        96
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle22",
+    "solution": [
+      [
+        35,
+        36,
+        49
+      ],
+      [
+        58,
+        86,
+        90
+      ],
+      [
+        96,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 22"
+  },
+  "puzzle23": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        8,
+        40,
+        0
+      ],
+      [
+        7,
+        92,
+        81
+      ],
+      [
+        60,
+        0,
+        82
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle23",
+    "solution": [
+      [
+        7,
+        8,
+        40
+      ],
+      [
+        60,
+        81,
+        82
+      ],
+      [
+        92,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 23"
+  },
+  "puzzle24": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        44,
+        98,
+        45
+      ],
+      [
+        0,
+        33,
+        67
+      ],
+      [
+        61,
+        76,
+        0
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle24",
+    "solution": [
+      [
+        33,
+        44,
+        45
+      ],
+      [
+        61,
+        67,
+        76
+      ],
+      [
+        98,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 24"
+  },
+  "puzzle25": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        83,
+        3,
+        62
+      ],
+      [
+        16,
+        0,
+        65
+      ],
+      [
+        0,
+        73,
+        75
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle25",
+    "solution": [
+      [
+        3,
+        16,
+        62
+      ],
+      [
+        65,
+        73,
+        75
+      ],
+      [
+        83,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 25"
+  },
+  "puzzle26": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        86,
+        0,
+        8
+      ],
+      [
+        63,
+        15,
+        13
+      ],
+      [
+        0,
+        36,
+        82
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle26",
+    "solution": [
+      [
+        8,
+        13,
+        15
+      ],
+      [
+        36,
+        63,
+        82
+      ],
+      [
+        86,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 26"
+  },
+  "puzzle27": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        10,
+        0,
+        13
+      ],
+      [
+        71,
+        15,
+        0
+      ],
+      [
+        48,
+        94,
+        99
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle27",
+    "solution": [
+      [
+        10,
+        13,
+        15
+      ],
+      [
+        48,
+        71,
+        94
+      ],
+      [
+        99,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 27"
+  },
+  "puzzle28": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        13,
+        0,
+        14
+      ],
+      [
+        64,
+        74,
+        15
+      ],
+      [
+        56,
+        59,
+        0
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle28",
+    "solution": [
+      [
+        13,
+        14,
+        15
+      ],
+      [
+        56,
+        59,
+        64
+      ],
+      [
+        74,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 28"
+  },
+  "puzzle29": {
+    "best_player_name": "Rohit",
+    "best_time": 0.0026,
+    "description": "Arrange numbers in grid.",
+    "difficulty": "easy",
+    "grid": [
+      [
+        7,
+        0,
+        74
+      ],
+      [
+        35,
+        29,
+        86
+      ],
+      [
+        32,
+        0,
+        19
+      ]
+    ],
+    "hints": [
+      "Swap the numbers to match the solution."
+    ],
+    "id": "puzzle29",
+    "solution": [
+      [
+        7,
+        19,
+        29
+      ],
+      [
+        32,
+        35,
+        74
+      ],
+      [
+        86,
+        0,
+        0
+      ]
+    ],
+    "title": "Level 29"
+  }
+}

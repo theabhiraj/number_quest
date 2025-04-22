@@ -24,7 +24,7 @@ A Flutter puzzle game app that dynamically fetches puzzles from Firebase Realtim
 
 1. Create a Firebase project in the [Firebase Console](https://console.firebase.google.com/)
 2. Add an Android app to your Firebase project
-   - Use package name: `com.abhiraj.number_quest`
+   - Use package name: `com.abhiraj.no_quest`
    - Register the app and download the `google-services.json` file
 3. Place the `google-services.json` file in the `android/app` directory
 4. Set up the Realtime Database

@@ -43,6 +43,10 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
 
+    // Add debug logging for ad service
+    debugPrint(
+        '🔍 HomeScreen initState: AdService initialized: ${_adService.isAdAvailable()}');
+
     // Initialize animation controller
     _animationController = AnimationController(
       vsync: this,
@@ -78,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen>
 
     // First try to load from cache immediately for faster startup
     bool cacheLoaded = await _loadPuzzlesFromCache(showOfflineDialog: false);
-    
+
     // Then try to load from Firebase in the background
     try {
       // If we successfully loaded from cache, we can set isLoading to false
@@ -87,12 +91,12 @@ class _HomeScreenState extends State<HomeScreen>
           _isLoading = false;
         });
       }
-      
+
       // Fetch from Firebase
       await _fetchPuzzlesFromFirebase(isBackground: cacheLoaded);
     } catch (e) {
       developer.log('Firebase error: $e', name: 'HomeScreen');
-      
+
       // If we haven't already loaded from cache successfully, try again with dialog
       if (!cacheLoaded) {
         await _loadPuzzlesFromCache(showOfflineDialog: true);
@@ -100,7 +104,8 @@ class _HomeScreenState extends State<HomeScreen>
         // If cache was loaded but Firebase failed, just show a snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Using cached puzzles. Couldn\'t update from server.'),
+            content:
+                Text('Using cached puzzles. Couldn\'t update from server.'),
             duration: Duration(seconds: 3),
             backgroundColor: Colors.orange,
           ),
@@ -147,22 +152,23 @@ class _HomeScreenState extends State<HomeScreen>
               for (int i = 0; i < newPuzzles.length; i++) {
                 if (i < _puzzles.length) {
                   if (newPuzzles[i].bestTime != _puzzles[i].bestTime ||
-                      newPuzzles[i].bestPlayerName != _puzzles[i].bestPlayerName) {
+                      newPuzzles[i].bestPlayerName !=
+                          _puzzles[i].bestPlayerName) {
                     puzzlesChanged = true;
                     break;
                   }
                 }
               }
             }
-            
+
             // Show a snackbar if puzzles were updated - REMOVING THIS AS REQUESTED
             if (puzzlesChanged) {
               // No notification message for updated puzzles
             }
           }
-          
+
           _puzzles = newPuzzles;
-          
+
           // Sort puzzles by their level
           _sortPuzzles();
 
@@ -201,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen>
           if (showOfflineDialog) {
             _isOffline = true;
           }
-          
+
           _puzzles = [];
 
           // Decode and parse the cached puzzles
@@ -225,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen>
         if (mounted && showOfflineDialog) {
           _showOfflineDialog();
         }
-        
+
         return true; // Successfully loaded from cache
       } else {
         if (mounted && showOfflineDialog) {
@@ -246,7 +252,8 @@ class _HomeScreenState extends State<HomeScreen>
         if (showOfflineDialog) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text('Failed to load cached puzzles: ${e.toString()}')),
+                content:
+                    Text('Failed to load cached puzzles: ${e.toString()}')),
           );
         }
       }
@@ -287,8 +294,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           ElevatedButton(
             onPressed: () async {
-              final hasInternet =
-                  await _connectivityService.checkConnection();
+              final hasInternet = await _connectivityService.checkConnection();
               if (hasInternet) {
                 Navigator.of(context).pop();
                 _refreshPuzzles();
@@ -338,8 +344,7 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           ElevatedButton(
             onPressed: () async {
-              final hasInternet =
-                  await _connectivityService.checkConnection();
+              final hasInternet = await _connectivityService.checkConnection();
               if (hasInternet) {
                 Navigator.of(context).pop();
                 _refreshPuzzles();
@@ -349,7 +354,8 @@ class _HomeScreenState extends State<HomeScreen>
                 // Show feedback that internet is still unavailable
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Still no internet connection. You can try again later.'),
+                    content: Text(
+                        'Still no internet connection. You can try again later.'),
                     backgroundColor: Colors.orange,
                   ),
                 );
@@ -442,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen>
           _unlockedLevels = {1: true};
         });
       }
-      
+
       // TESTING ONLY: Uncomment to unlock all levels for testing and remove before release
       // _unlockAllLevelsForTesting();
     } catch (e) {
@@ -451,36 +457,37 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _unlockedLevels = {1: true};
       });
-      
+
       // TESTING ONLY: Uncomment to unlock all levels for testing and remove before release
       // _unlockAllLevelsForTesting();
     }
   }
-  
+
   // TESTING ONLY: Function to unlock all levels for testing purposes
   // This should be removed or commented out before release
   Future<void> _unlockAllLevelsForTesting() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Create a map with all levels (1-525) unlocked
       final Map<int, bool> allUnlocked = {};
       for (int i = 1; i <= 525; i++) {
         allUnlocked[i] = true;
       }
-      
+
       // Save to preferences
       final encodedMap = jsonEncode(
           allUnlocked.map((key, value) => MapEntry(key.toString(), value)));
       await prefs.setString('unlocked_levels', encodedMap);
-      
+
       // Update in-memory state
       setState(() {
         _unlockedLevels = allUnlocked;
       });
-      
+
       // Log that we've unlocked all levels
-      developer.log('TEST MODE: All levels unlocked for testing', name: 'HomeScreen');
+      developer.log('TEST MODE: All levels unlocked for testing',
+          name: 'HomeScreen');
     } catch (e) {
       developer.log('Error unlocking all levels: $e', name: 'HomeScreen');
     }
@@ -660,7 +667,6 @@ class _HomeScreenState extends State<HomeScreen>
 
       // Save updated puzzles back to cache
       await _savePuzzlesToCache();
-
     } catch (e) {
       // Close loading dialog if there was an error
       if (mounted) {
@@ -931,8 +937,8 @@ class _HomeScreenState extends State<HomeScreen>
         if (currentIndex != -1 && currentIndex < _puzzles.length - 1) {
           // Navigate directly to the next puzzle without delay
           _navigateToPuzzle(_puzzles[currentIndex + 1]);
-          
-          // After navigation has started, refresh puzzles list in the background 
+
+          // After navigation has started, refresh puzzles list in the background
           // to ensure unlocked levels are updated for when user returns to home
           _refreshPuzzles();
         }
@@ -945,6 +951,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Debug logs for build method
+    final bool adsAvailable = _adService.isAdAvailable();
+    debugPrint('🔍 HomeScreen build method - Ads available: $adsAvailable');
+
     final theme = Theme.of(context);
 
     // Get screen size for responsive design
@@ -981,7 +991,8 @@ class _HomeScreenState extends State<HomeScreen>
                     parent: BouncingScrollPhysics()),
                 slivers: [
                   SliverAppBar(
-                    expandedHeight: isTablet ? 220 : (isMediumScreen ? 190 : 170),
+                    expandedHeight:
+                        isTablet ? 220 : (isMediumScreen ? 190 : 170),
                     pinned: true,
                     elevation: 0,
                     backgroundColor: customPrimary,
@@ -1079,7 +1090,8 @@ class _HomeScreenState extends State<HomeScreen>
                               },
                               blendMode: BlendMode.dstIn,
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
                                 children: List.generate(
                                   5,
                                   (index) => Text(
@@ -1227,13 +1239,15 @@ class _HomeScreenState extends State<HomeScreen>
                             );
 
                             return Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                              padding:
+                                  const EdgeInsets.fromLTRB(16, 20, 16, 12),
                               child: GestureDetector(
                                 onTap: () {
                                   _navigateToPuzzle(resumePuzzle);
                                 },
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
                                       begin: Alignment.topLeft,
@@ -1291,7 +1305,8 @@ class _HomeScreenState extends State<HomeScreen>
 
                           final puzzle = _puzzles[puzzleIndex];
                           final levelNumber = _extractLevelNumber(puzzle.title);
-                          final isUnlocked = _unlockedLevels[levelNumber] ?? false;
+                          final isUnlocked =
+                              _unlockedLevels[levelNumber] ?? false;
 
                           // Create a staggered animation delay based on index
                           final Animation<double> itemAnimation = Tween<double>(
@@ -1314,7 +1329,8 @@ class _HomeScreenState extends State<HomeScreen>
                             animation: itemAnimation,
                             builder: (context, child) {
                               return Transform.translate(
-                                offset: Offset(0, 10 * (1 - itemAnimation.value)),
+                                offset:
+                                    Offset(0, 10 * (1 - itemAnimation.value)),
                                 child: Opacity(
                                   opacity: itemAnimation.value,
                                   child: child,
@@ -1355,7 +1371,8 @@ class _HomeScreenState extends State<HomeScreen>
                                         duration: const Duration(seconds: 2),
                                         behavior: SnackBarBehavior.floating,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
                                         ),
                                       ),
                                     );
@@ -1372,7 +1389,8 @@ class _HomeScreenState extends State<HomeScreen>
                         },
                         childCount: _puzzles.isEmpty
                             ? 0
-                            : (_puzzles.length + (nextLevelToPlay != null ? 1 : 0)),
+                            : (_puzzles.length +
+                                (nextLevelToPlay != null ? 1 : 0)),
                       ),
                     ),
                 ],
@@ -1380,13 +1398,26 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           // Banner Ad at the bottom
-          if (_adService.isAdAvailable())
+          if (adsAvailable)
             Container(
               width: double.infinity,
               height: 50, // Standard banner height
-              child: AdService().createBannerAd(
-                adSize: AdSize.banner,
-                adPlacement: 'home_screen_bottom',
+              decoration: BoxDecoration(
+                border: Border.all(
+                    color: Colors.red
+                        .withOpacity(0.3)), // Visual indicator for debugging
+                color: Colors.grey
+                    .withOpacity(0.1), // Visual indicator for debugging
+              ),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: AdService().createBannerAd(
+                      adSize: AdSize.banner,
+                      adPlacement: 'home_screen_bottom',
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -1463,9 +1494,9 @@ class _LevelCardState extends State<LevelCard>
         _animController.stop();
       }
     }
-    
+
     // Reload user best time when returning to the screen or when puzzle changes
-    if (oldWidget.puzzle.id != widget.puzzle.id || 
+    if (oldWidget.puzzle.id != widget.puzzle.id ||
         (!oldWidget.isLocked && !widget.isLocked)) {
       _loadUserBestTime();
     }
@@ -1477,7 +1508,7 @@ class _LevelCardState extends State<LevelCard>
       setState(() {
         _userBestTime = double.infinity;
       });
-      
+
       final prefs = await SharedPreferences.getInstance();
       if (mounted) {
         setState(() {

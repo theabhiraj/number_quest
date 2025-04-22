@@ -27,8 +27,17 @@ if (flutterVersionName == null) {
     flutterVersionName = '1.0'
 }
 
+// Load key.properties file if exists (for release signing)
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withReader('UTF-8') { reader ->
+        keystoreProperties.load(reader)
+    }
+}
+
 android {
-    namespace "com.abhiraj.number_quest"
+    namespace "com.abhiraj.no_quest"
     compileSdkVersion 35
     ndkVersion "27.0.12077973"
 
@@ -46,7 +55,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.abhiraj.number_quest"
+        applicationId "com.abhiraj.no_quest"
         minSdkVersion 21
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -55,12 +64,21 @@ android {
         multiDexEnabled true
     }
 
+    signingConfigs {
+        release {
+            storeFile file("no_quest.jks")
+            storePassword "abhiraj"
+            keyAlias "no_quest"
+            keyPassword "abhiraj"
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
         }
     }
 

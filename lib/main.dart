@@ -40,19 +40,31 @@ void main() async {
   // Initialize ad service with retries
   bool adsInitialized = false;
   int attempts = 0;
-  
+
+  debugPrint('📱 Starting ad initialization process...');
+
   while (!adsInitialized && attempts < 3) {
     try {
+      debugPrint('📱 Ad initialization attempt ${attempts + 1}...');
       await AdService().initialize();
       adsInitialized = true;
+      debugPrint(
+          '✅ Ad initialization successful after ${attempts + 1} attempts');
     } catch (e) {
       attempts++;
-      debugPrint('Ad initialization attempt $attempts failed: $e');
+      debugPrint('❌ Ad initialization attempt $attempts failed: $e');
       // Wait before retrying
       if (attempts < 3) {
-        await Future.delayed(Duration(seconds: math.pow(2, attempts).toInt()));
+        final retryDelay = math.pow(2, attempts).toInt();
+        debugPrint('⏳ Waiting $retryDelay seconds before retrying...');
+        await Future.delayed(Duration(seconds: retryDelay));
       }
     }
+  }
+
+  if (!adsInitialized) {
+    debugPrint(
+        '⚠️ Failed to initialize ads after $attempts attempts. Continuing without ads.');
   }
 
   try {
@@ -61,6 +73,7 @@ void main() async {
     );
     runApp(const MyApp());
   } catch (e) {
+    debugPrint('❌ Failed to initialize Firebase: $e');
     runApp(const ErrorApp());
   }
 }
